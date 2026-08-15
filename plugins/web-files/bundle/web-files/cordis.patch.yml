@@ -1,0 +1,9 @@
+# Web files explorer patch layer: the Host files Remote service and the
+# client UI plugin. Installing this bundle into a web profile adds the
+# session-header files toggle and the overlay drawer; removing the insert
+# removes both together.
+- insert:
+    - id: files-remote
+      name: '@gaowen/dsh-files-remote'
+    - id: ui-files
+      name: '@gaowen/dsh-client-ui-files'

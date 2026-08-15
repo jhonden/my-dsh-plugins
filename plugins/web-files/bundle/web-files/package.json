@@ -1,0 +1,22 @@
+{
+  "name": "@gaowen/dsh-bundle-web-files",
+  "description": "dsh profile bundle: workspace file explorer (Host files Remote service + Web client plugin)",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "cordis.patch.yml",
+    "lib/index.js"
+  ],
+  "license": "MIT"
+}

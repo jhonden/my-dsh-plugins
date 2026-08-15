@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./plugins/web-files/packages/files-remote" },
+    { "path": "./plugins/web-files/packages/ui-files" },
+    { "path": "./plugins/web-files/bundle/web-files" }
+  ]
+}

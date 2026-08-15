@@ -1,0 +1,22 @@
+{
+  "name": "my-dsh-plugins",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Plugin collection for the DeepSeek Harness (dsh): each directory under plugins/ is one self-contained, independently installable plugin distribution",
+  "license": "MIT",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.json && pnpm -r --filter '*ui*' --filter '*client*' exec tsdown",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc -b tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "tsdown": "^0.14.0",
+    "vitest": "^3.2.4"
+  }
+}
