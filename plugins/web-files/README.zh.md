@@ -45,7 +45,24 @@
 
 ## 安装
 
-在本仓库检出后（先构建——`lib/` 产物除 Typert 描述符外不入库）：
+每包一条命令，直接从 GitHub 安装——构建产物已入库，无需本地构建（已端到端验证）：
+
+```sh
+dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/bundle/web-files"
+dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/files-remote"
+dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/ui-files"
+
+dsh web   # 重启后，每个会话头部出现该 tab
+```
+
+网络对 codeload.github.com 较慢时，pnpm 默认拉取超时可能撑不到 ~2 MiB 的
+tarball 下完——先放宽一次：
+
+```sh
+npm config set fetch-timeout 600000
+```
+
+### 本地检出安装（插件开发）
 
 ```sh
 pnpm install && pnpm build
@@ -53,9 +70,9 @@ pnpm install && pnpm build
 dsh plugin --profile web add link:$(pwd)/plugins/web-files/bundle/web-files
 dsh plugin --profile web add link:$(pwd)/plugins/web-files/packages/files-remote \
                                 link:$(pwd)/plugins/web-files/packages/ui-files
-
-dsh web   # 重启后，每个会话头部出现该 tab
 ```
+
+修改源码后，构建并将 `lib/` 与变更一起提交——GitHub 直装用的是仓库树里的产物。
 
 ## 兼容性
 

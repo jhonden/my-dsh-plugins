@@ -45,7 +45,25 @@ Feature plan and feasibility tiers: [docs/roadmap.md](docs/roadmap.md).
 
 ## Install
 
-From a checkout of this repository (build first — `lib/` artifacts are gitignored except Typert descriptors):
+One command per package, straight from GitHub — build outputs are committed,
+so no local build is needed (verified end to end):
+
+```sh
+dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/bundle/web-files"
+dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/files-remote"
+dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/ui-files"
+
+dsh web   # restart; the tab appears in every session header
+```
+
+On a slow link to codeload.github.com, pnpm's default fetch timeout can hit
+before the ~2 MiB tarball lands — widen it once:
+
+```sh
+npm config set fetch-timeout 600000
+```
+
+### From a local checkout (plugin development)
 
 ```sh
 pnpm install && pnpm build
@@ -53,9 +71,10 @@ pnpm install && pnpm build
 dsh plugin --profile web add link:$(pwd)/plugins/web-files/bundle/web-files
 dsh plugin --profile web add link:$(pwd)/plugins/web-files/packages/files-remote \
                                 link:$(pwd)/plugins/web-files/packages/ui-files
-
-dsh web   # restart; the tab appears in every session header
 ```
+
+After editing source, rebuild and commit `lib/` together with the change —
+GitHub installs carry what is in the tree.
 
 ## Compatibility
 
