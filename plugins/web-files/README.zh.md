@@ -34,6 +34,8 @@
 
 设计细节（wire 契约、备选方案、验收标准）：[docs/design.md](docs/design.md)。
 
+功能规划与可行性分级：[docs/roadmap.md](docs/roadmap.md)。
+
 ## 安装
 
 在本仓库检出后（先构建——`lib/` 产物除 Typert 描述符外不入库）：

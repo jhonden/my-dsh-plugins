@@ -34,6 +34,8 @@ The browser never touches the filesystem directly. All reads go through a Host-s
 
 Design details (wire contract, alternatives considered, acceptance criteria): [docs/design.md](docs/design.md).
 
+Feature plan and feasibility tiers: [docs/roadmap.md](docs/roadmap.md).
+
 ## Install
 
 From a checkout of this repository (build first — `lib/` artifacts are gitignored except Typert descriptors):
