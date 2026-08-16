@@ -13,6 +13,7 @@ import type { FilesDirEntry, FilesListResult, FilesReadResult, FilesSearchResult
 import { imageMediaTypeFor } from '@gaowen/dsh-files-remote/images'
 import { langFromPath } from './lang.ts'
 import { activeQuery, filterLevel } from './filter.ts'
+import { compressDir, splitPath } from './path-row.ts'
 import { rewriteMarkdownImages } from './md-images.ts'
 import type { RpcOutcome } from './rpc.ts'
 
@@ -293,7 +294,7 @@ function FilterBox(props: {
   )
 }
 
-/** Flat recursive-search results: full paths, match highlighted, click to open. */
+/** Flat recursive-search results: dim compressed dir + full file name, click to open. */
 function SearchResults(props: {
   state: { phase: 'done'; query: string; paths: string[]; truncated: boolean }
   query: string
@@ -310,7 +311,12 @@ function SearchResults(props: {
         {t('search.count').replace('{n}', String(state.paths.length))}{state.truncated ? ` · ${t('search.truncated')}` : ''}
       </div>
       {state.paths.map(path => {
-        const index = path.toLowerCase().indexOf(query)
+        const { dir, name } = splitPath(path)
+        // Budget the dir to roughly the column width minus the file name;
+        // the name never truncates (it wraps below when extreme).
+        const dirBudget = Math.max(18, 44 - name.length)
+        const shownDir = compressDir(dir, dirBudget)
+        const nameIndex = name.toLowerCase().indexOf(query)
         return (
           <button
             key={path}
@@ -322,18 +328,19 @@ function SearchResults(props: {
               background: 'none', border: 'none', color: 'inherit', cursor: 'pointer',
               fontSize: '12px', lineHeight: '18px', borderRadius: '4px',
               fontFamily: 'var(--dsw-alias-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              wordBreak: 'break-all',
             }}
             onMouseEnter={event => { event.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.06))' }}
             onMouseLeave={event => { event.currentTarget.style.background = 'none' }}
           >
-            {index === -1 ? path : (
+            <span style={{ opacity: 0.55, fontSize: 11 }}>{shownDir}</span>
+            {nameIndex === -1 ? name : (
               <>
-                {path.slice(0, index)}
+                {name.slice(0, nameIndex)}
                 <mark style={{ background: 'var(--dsw-alias-interactive-bg-hover-accent, rgba(38,49,72,0.14))', color: 'inherit', borderRadius: '2px', padding: '0 1px' }}>
-                  {path.slice(index, index + query.length)}
+                  {name.slice(nameIndex, nameIndex + query.length)}
                 </mark>
-                {path.slice(index + query.length)}
+                {name.slice(nameIndex + query.length)}
               </>
             )}
           </button>
