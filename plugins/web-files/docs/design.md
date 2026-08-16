@@ -42,6 +42,12 @@ Three packages in one distribution:
   `fs/*` event gate and any mounted observation policy; it is provider-neutral
   (local, sandbox, or E2B).
 
+- `files.search({ sessionId, query })` → `{ paths, truncated }` — recursive
+  file-path search through the packaged ripgrep (`--files` + case-insensitive
+  glob, VCS dirs pruned, newest-first, capped at `maxSearchPaths`, default
+  200). The session cwd is the rg workdir, so confinement is structural.
+  Files only — `rg --files` lists no directories.
+
 ### Image preview route
 
 `GET /plugins-web-files/preview?sessionId=…&path=…` (a `webServer` prefix
