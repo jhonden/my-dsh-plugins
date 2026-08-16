@@ -435,8 +435,8 @@ window.__ModuleLoader__.load({
 				const sessionId = face.current.currentSessionId();
 				if (sessionId === void 0) return;
 				const id = idForPath(path);
-				if (!tabsRef.current.some((tab) => tab.id === id)) setTabs((prev) => {
-					const next = [...prev, {
+				if (!tabsRef.current.some((tab) => tab.id === id)) {
+					const next = [...tabsRef.current, {
 						id,
 						reading: {
 							state: "loading",
@@ -446,29 +446,34 @@ window.__ModuleLoader__.load({
 					}];
 					const capped = next.length > MAX_TABS ? next.slice(next.length - MAX_TABS) : next;
 					tabsRef.current = capped;
-					return capped;
-				});
-				else setTabs((prev) => {
+					setTabs(capped);
+				} else {
+					const prev = tabsRef.current;
 					const index = prev.findIndex((tab) => tab.id === id);
-					if (index === -1 || index === prev.length - 1) return prev;
-					return [
-						...prev.slice(0, index),
-						...prev.slice(index + 1),
-						prev[index]
-					];
-				});
+					if (index !== -1 && index !== prev.length - 1) {
+						const moved = [
+							...prev.slice(0, index),
+							...prev.slice(index + 1),
+							prev[index]
+						];
+						tabsRef.current = moved;
+						setTabs(moved);
+					}
+				}
 				if (activeIdRef.current !== id) setActiveId(id);
 				const stillOpen = () => tabsRef.current.some((tab) => tab.id === id);
 				if (isImagePath(path)) {
 					if (sessionId === void 0 || !stillOpen()) return;
-					setTabs((prev) => prev.map((tab) => tab.id === id ? {
+					const withImage = tabsRef.current.map((tab) => tab.id === id ? {
 						...tab,
 						reading: {
 							state: "image",
 							path,
 							url: previewUrl(sessionId, path)
 						}
-					} : tab));
+					} : tab);
+					tabsRef.current = withImage;
+					setTabs(withImage);
 					return;
 				}
 				const outcome = await face.current.call.read(sessionId, path);
