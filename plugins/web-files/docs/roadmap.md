@@ -34,10 +34,15 @@ against each upstream release — this file records the plan, not a promise.
 
 ## v0.3 — Search & navigation
 
-- [ ] **Full-text search (rg)** — import `runRipgrep` from
-      `@deepseek-ai/dsh-tool-fs-search` (`./src/*` subpath export); it only
-      consumes `exec.signal` + `exec.agent.session.header.cwd`, so a synthetic
-      exec object suffices. Results grouped by file, click → open + scroll to
+- [x] **Filename search (rg, recursive)** — shipped ahead of plan: the filter
+      box now debounce-searches the whole workspace through a new
+      `filesRemote/search` Remote method (`runRipgrep --files --glob=**q*`,
+      packaged rg, workspace = the rg workdir) and renders a flat
+      full-path result list with match highlighting; the loaded-tree filter
+      remains as the pre-response view. Files only (rg --files lists no
+      directories); 200-path cap.
+- [ ] **Full-text search (rg)** — content grep through the same channel;
+      results grouped by file with line numbers, click → open + scroll to
       line.
 - [ ] **Viewer tabs** — multiple open files with a tab strip; per-tab
       preview/source state.

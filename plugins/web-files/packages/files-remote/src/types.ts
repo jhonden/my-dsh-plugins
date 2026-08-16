@@ -48,6 +48,20 @@ export interface FilesReadRequest {
   path: string
 }
 
+/** Request shape for `files.search`. */
+export interface FilesSearchRequest {
+  /** Case-insensitive substring matched against every file path recursively. */
+  query: string
+}
+
+/** Result of `files.search`. */
+export interface FilesSearchResult {
+  /** Workspace-relative file paths matching the query, newest-modified first. */
+  paths: string[]
+  /** True when the result was cut at the path cap. */
+  truncated: boolean
+}
+
 /** Stable error identities surfaced through the Remote boundary. */
 export type FilesErrorCode =
   | 'FILES_PATH_OUTSIDE_WORKSPACE'

@@ -6,7 +6,7 @@
  * generated Remote contributions while still using the Gateway-claimed,
  * schema-validated endpoint.
  */
-import type { FilesListResult, FilesReadResult } from '@gaowen/dsh-files-remote/types'
+import type { FilesListResult, FilesReadResult, FilesSearchResult } from '@gaowen/dsh-files-remote/types'
 
 /** One RPC carrier outcome: a value, or a typed error identity. */
 export type RpcOutcome<T> = { ok: true; value: T } | { ok: false; error: { code: string; message: string } }
@@ -23,6 +23,7 @@ function randomRpcId(): string {
 export function filesRpc(): {
   list: (sessionId: string, path: string, signal?: AbortSignal) => Promise<RpcOutcome<FilesListResult>>
   read: (sessionId: string, path: string, signal?: AbortSignal) => Promise<RpcOutcome<FilesReadResult>>
+  search: (sessionId: string, query: string, signal?: AbortSignal) => Promise<RpcOutcome<FilesSearchResult>>
 } {
   async function call<T>(method: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<RpcOutcome<T>> {
     const rpcId = randomRpcId()
@@ -53,5 +54,6 @@ export function filesRpc(): {
     // keeps the request object under its declared `request` wire name.
     list: (sessionId, path, signal) => call<FilesListResult>('list', { sessionId, request: { path } }, signal),
     read: (sessionId, path, signal) => call<FilesReadResult>('read', { sessionId, request: { path } }, signal),
+    search: (sessionId, query, signal) => call<FilesSearchResult>('search', { sessionId, request: { query } }, signal),
   }
 }

@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { MarkdownText, ReadBlock } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReadBlockLine } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { FilesDirEntry, FilesListResult, FilesReadResult } from '@gaowen/dsh-files-remote/types'
+import type { FilesDirEntry, FilesListResult, FilesReadResult, FilesSearchResult } from '@gaowen/dsh-files-remote/types'
 import { imageMediaTypeFor } from '@gaowen/dsh-files-remote/images'
 import { langFromPath } from './lang.ts'
 import { activeQuery, filterLevel } from './filter.ts'
@@ -20,6 +20,7 @@ import type { RpcOutcome } from './rpc.ts'
 export interface FilesCallFace {
   list: (sessionId: string, path: string, signal?: AbortSignal) => Promise<RpcOutcome<FilesListResult>>
   read: (sessionId: string, path: string, signal?: AbortSignal) => Promise<RpcOutcome<FilesReadResult>>
+  search: (sessionId: string, query: string, signal?: AbortSignal) => Promise<RpcOutcome<FilesSearchResult>>
 }
 
 /** Locale translate function bound to this plugin's namespace. */
@@ -161,6 +162,40 @@ export function FilesView(props: FilesViewProps) {
   const [, bumpLoaded] = useState(0)
   const childrenOf = useCallback((dir: string): readonly FilesDirEntry[] | undefined => loadedRef.current.get(dir), [])
 
+  /**
+   * Recursive search: debounced `filesRemote/search` (rg over the whole
+   * workspace), generation-fenced so a stale response never lands. The
+   * result replaces the tree with a flat path list until the query clears.
+   */
+  const [searchState, setSearchState] = useState<
+    | { phase: 'idle' }
+    | { phase: 'searching'; query: string }
+    | { phase: 'done'; query: string; paths: string[]; truncated: boolean }
+    | { phase: 'error'; query: string }
+  >({ phase: 'idle' })
+  const searchGen = useRef(0)
+
+  useEffect(() => {
+    if (query === '') {
+      searchGen.current++
+      setSearchState({ phase: 'idle' })
+      return
+    }
+    const gen = ++searchGen.current
+    setSearchState({ phase: 'searching', query })
+    const timer = setTimeout(() => {
+      void (async () => {
+        const sessionId = face.current.currentSessionId()
+        if (sessionId === undefined) return
+        const outcome = await face.current.call.search(sessionId, filterRaw)
+        if (gen !== searchGen.current) return
+        if (!outcome.ok) { setSearchState({ phase: 'error', query }); return }
+        setSearchState({ phase: 'done', query, paths: outcome.value.paths, truncated: outcome.value.truncated })
+      })()
+    }, 250)
+    return () => { clearTimeout(timer) }
+  }, [query, filterRaw])
+
   const reportLoaded = useCallback((path: string, entries: readonly FilesDirEntry[] | null) => {
     const map = loadedRef.current
     const had = map.has(path)
@@ -181,16 +216,22 @@ export function FilesView(props: FilesViewProps) {
         aria-label={t('view.files')}
         style={{ width: '280px', minWidth: '200px', flexShrink: 0, overflow: 'auto', borderRight: '1px solid var(--dsw-alias-border-l2, #ccc)', display: 'flex', flexDirection: 'column' }}
       >
-        <FilterBox value={filterRaw} onChange={setFilterRaw} placeholder={t('filter.placeholder')} clearLabel={t('filter.clear')} t={t} />
-        <div style={{ flex: 1, overflow: 'auto', padding: '4px 4px' }}>
-          {rootListing?.state === 'loading' && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.loading')}</div>}
-          {rootListing?.state === 'error' && <div style={{ padding: '4px 8px', color: 'var(--dsw-alias-state-error-primary, #e55)' }}>{rootListing.message}</div>}
-          {rootEmpty && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{filtering ? t('filter.noMatch') : t('tree.empty')}</div>}
-          {rootFiltered.map(row => (
-            <TreeRow key={row.entry.name} entry={row.entry} match={row.match} parentPath="" depth={0} t={t} listDir={listDir} onOpenFile={openFile} filtering={filtering} query={query} childrenOf={childrenOf} reportLoaded={reportLoaded} />
-          ))}
-          {rootListing?.state === 'done' && rootListing.truncated && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.truncated')}</div>}
-        </div>
+        <FilterBox value={filterRaw} onChange={setFilterRaw} placeholder={t('filter.placeholder')} clearLabel={t('filter.clear')} t={t} searching={searchState.phase === 'searching'} />
+        {searchState.phase === 'done' ? (
+          <SearchResults state={searchState} query={query} t={t} onOpen={openFile} />
+        ) : (
+          <div style={{ flex: 1, overflow: 'auto', padding: '4px 4px' }}>
+            {searchState.phase === 'searching' && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('search.searching')}</div>}
+            {searchState.phase === 'error' && <div style={{ padding: '4px 8px', color: 'var(--dsw-alias-state-error-primary, #e55)' }}>{t('search.error')}</div>}
+            {rootListing?.state === 'loading' && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.loading')}</div>}
+            {rootListing?.state === 'error' && <div style={{ padding: '4px 8px', color: 'var(--dsw-alias-state-error-primary, #e55)' }}>{rootListing.message}</div>}
+            {rootEmpty && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{filtering ? t('filter.noMatch') : t('tree.empty')}</div>}
+            {rootFiltered.map(row => (
+              <TreeRow key={row.entry.name} entry={row.entry} match={row.match} parentPath="" depth={0} t={t} listDir={listDir} onOpenFile={openFile} filtering={filtering} query={query} childrenOf={childrenOf} reportLoaded={reportLoaded} />
+            ))}
+            {rootListing?.state === 'done' && rootListing.truncated && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.truncated')}</div>}
+          </div>
+        )}
       </nav>
       <ViewerColumn reading={reading} t={t} sessionId={face.current.currentSessionId()} />
     </div>
@@ -204,8 +245,9 @@ function FilterBox(props: {
   placeholder: string
   clearLabel: string
   t: T
+  searching: boolean
 }) {
-  const { value, onChange, placeholder, clearLabel, t } = props
+  const { value, onChange, placeholder, clearLabel, t, searching } = props
   const [focused, setFocused] = useState(false)
   return (
     <div style={{ padding: '8px 8px 4px', borderBottom: '1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.04))' }}>
@@ -219,7 +261,7 @@ function FilterBox(props: {
           transition: 'border-color .12s, box-shadow .12s',
         }}
       >
-        <span aria-hidden style={{ opacity: 0.5, fontSize: '13px', flexShrink: 0 }}>🔍</span>
+        <span aria-hidden style={{ opacity: 0.5, fontSize: '13px', flexShrink: 0 }}>{searching ? '⏳' : '🔍'}</span>
         <input
           type="text"
           value={value}
@@ -247,6 +289,56 @@ function FilterBox(props: {
       {value.trim() !== '' && (
         <div style={{ opacity: 0.5, fontSize: '11px', padding: '4px 2px 0' }}>{t('filter.loadedOnly')}</div>
       )}
+    </div>
+  )
+}
+
+/** Flat recursive-search results: full paths, match highlighted, click to open. */
+function SearchResults(props: {
+  state: { phase: 'done'; query: string; paths: string[]; truncated: boolean }
+  query: string
+  t: T
+  onOpen: (path: string) => void
+}) {
+  const { state, query, t, onOpen } = props
+  if (state.paths.length === 0) {
+    return <div style={{ flex: 1, overflow: 'auto', padding: '8px 10px', opacity: 0.6 }}>{t('search.noMatch')}</div>
+  }
+  return (
+    <div style={{ flex: 1, overflow: 'auto', padding: '4px 4px' }}>
+      <div style={{ opacity: 0.55, fontSize: '11px', padding: '2px 6px 6px' }}>
+        {t('search.count').replace('{n}', String(state.paths.length))}{state.truncated ? ` · ${t('search.truncated')}` : ''}
+      </div>
+      {state.paths.map(path => {
+        const index = path.toLowerCase().indexOf(query)
+        return (
+          <button
+            key={path}
+            type="button"
+            title={path}
+            onClick={() => { onOpen(path) }}
+            style={{
+              display: 'block', width: '100%', textAlign: 'left', padding: '3px 8px',
+              background: 'none', border: 'none', color: 'inherit', cursor: 'pointer',
+              fontSize: '12px', lineHeight: '18px', borderRadius: '4px',
+              fontFamily: 'var(--dsw-alias-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}
+            onMouseEnter={event => { event.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.06))' }}
+            onMouseLeave={event => { event.currentTarget.style.background = 'none' }}
+          >
+            {index === -1 ? path : (
+              <>
+                {path.slice(0, index)}
+                <mark style={{ background: 'var(--dsw-alias-interactive-bg-hover-accent, rgba(38,49,72,0.14))', color: 'inherit', borderRadius: '2px', padding: '0 1px' }}>
+                  {path.slice(index, index + query.length)}
+                </mark>
+                {path.slice(index + query.length)}
+              </>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }

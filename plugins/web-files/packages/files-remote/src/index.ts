@@ -20,7 +20,10 @@ import type {
   FilesListResult,
   FilesReadRequest,
   FilesReadResult,
+  FilesSearchRequest,
+  FilesSearchResult,
 } from './types.ts'
+import { runRipgrep } from '@deepseek-ai/dsh-tool-fs-search'
 import { IMAGE_MEDIA_TYPES, MAX_IMAGE_BYTES, imageMediaTypeFor } from './images.ts'
 
 export type * from './types.ts'
@@ -45,6 +48,11 @@ export class FilesRemoteError extends Error {
   }
 }
 
+/** Escape glob metacharacters so the query matches literally inside the glob. */
+function globEscape(value: string): string {
+  return value.replaceAll(/[\\*?[\]{}!]/g, char => `[${char === '\\' ? '\\\\' : char}]`)
+}
+
 /**
  * Files Remote service (`ctx.filesRemote`): the Host half of the Web file
  * explorer. Every operation resolves the caller-supplied session-relative path
@@ -54,20 +62,23 @@ export class FilesRemoteError extends Error {
  * containment check, not by string inspection.
  */
 export class FilesRemoteService extends TypertRemoteService {
-  static inject = ['fs']
+  static inject = ['fs', 'subprocess']
 
   static Config = z.object({
     maxEntries: z.number().int().positive().default(1000),
     maxReadChars: z.number().int().positive().default(512 * 1024),
-  }).default(() => ({ maxEntries: 1000, maxReadChars: 512 * 1024 }))
+    maxSearchPaths: z.number().int().positive().default(200),
+  }).default(() => ({ maxEntries: 1000, maxReadChars: 512 * 1024, maxSearchPaths: 200 }))
 
   private readonly maxEntries: number
   private readonly maxReadChars: number
+  private readonly maxSearchPaths: number
 
-  constructor(ctx: Context, config: Config = { maxEntries: 1000, maxReadChars: 512 * 1024 }) {
+  constructor(ctx: Context, config: Config = { maxEntries: 1000, maxReadChars: 512 * 1024, maxSearchPaths: 200 }) {
     super(ctx, 'filesRemote')
     this.maxEntries = config.maxEntries
     this.maxReadChars = config.maxReadChars
+    this.maxSearchPaths = config.maxSearchPaths
     // Image preview route for markdown relative-image references. The /api
     // trust fence does not cover custom routes, so this handler enforces its
     // own same-origin check (a malicious page must not read local images via
@@ -142,6 +153,39 @@ export class FilesRemoteService extends TypertRemoteService {
       ? true
       : false
     return site === 'same-origin' || site === 'same-site' || site === 'none'
+  }
+
+  /**
+   * Recursively find workspace file paths whose path contains the query
+   * (case-insensitive), newest-modified first, through the packaged ripgrep
+   * binary. The session cwd is the rg workdir, so the search is
+   * workspace-confined by construction; VCS metadata directories are pruned
+   * and node_modules follows gitignore when present.
+   * @param session - calling session; its immutable header cwd is the search root.
+   * @param request - the path substring.
+   * @returns matched workspace-relative paths, capped, with a truncated flag.
+   */
+  @Remote('search')
+  async search(session: Session, request: FilesSearchRequest): Promise<FilesSearchResult> {
+    const query = request.query.trim().toLowerCase()
+    if (query === '') return { paths: [], truncated: false }
+    const run = await runRipgrep(
+      this.ctx,
+      // runRipgrep consumes exactly exec.signal and exec.agent.session.header.cwd.
+      { signal: new AbortController().signal, agent: { session } } as never,
+      'filesRemote/search',
+      ['--files', '--sort=modified', `--glob=**/*${globEscape(query)}*`,
+        '--glob=!**/.git', '--glob=!**/.git/**', '--glob=!**/.hg', '--glob=!**/.hg/**',
+        '--glob=!**/.svn', '--glob=!**/.svn/**'],
+      4 * 1024 * 1024,
+      5_000,
+      8 * 1024,
+    )
+    const lines = run.stdout.split('\n').filter(line => line !== '')
+    const truncated = lines.length > this.maxSearchPaths
+    const paths = (truncated ? lines.slice(0, this.maxSearchPaths) : lines)
+      .map(line => line.replaceAll('\\', '/'))
+    return { paths, truncated }
   }
 
   /**

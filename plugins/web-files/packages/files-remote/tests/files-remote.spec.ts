@@ -63,6 +63,13 @@ function makeSession(cwd: string | undefined): never {
   return { header: { cwd } } as never
 }
 
+/** Minimal subprocess stub: search uses runRipgrep, which these tests never call. */
+class FakeSubprocess extends Service {
+  static inject: readonly string[] = []
+
+  constructor(ctx: Context) { super(ctx, 'subprocess') }
+}
+
 async function setup(config?: ConstructorParameters<typeof FilesRemoteService>[1]): Promise<{
   ctx: Context
   files: FilesRemoteService
@@ -70,6 +77,7 @@ async function setup(config?: ConstructorParameters<typeof FilesRemoteService>[1
 }> {
   const ctx = new Context()
   await ctx.plugin(FakeFileSystem)
+  await ctx.plugin(FakeSubprocess)
   const fake = ctx.get('fs') as unknown as FakeFileSystem
   await ctx.plugin(FilesRemoteService, config)
   const files = ctx.get('filesRemote') as unknown as FilesRemoteService
@@ -193,6 +201,7 @@ describe('configuration and lifecycle', () => {
   it('rejects non-positive or non-integer bounds', async () => {
     const ctx = new Context()
     await ctx.plugin(FakeFileSystem)
+    await ctx.plugin(FakeSubprocess)
     await expect(ctx.plugin(FilesRemoteService, { maxEntries: 0 })).rejects.toThrow()
     await expect(ctx.plugin(FilesRemoteService, { maxReadChars: 1.5 })).rejects.toThrow()
   })
@@ -200,6 +209,7 @@ describe('configuration and lifecycle', () => {
   it('disposes with its fiber (HMR-safety)', async () => {
     const ctx = new Context()
     await ctx.plugin(FakeFileSystem)
+    await ctx.plugin(FakeSubprocess)
     const fiber = await ctx.plugin(FilesRemoteService)
     expect(ctx.get('filesRemote')).toBeDefined()
     await fiber.dispose()
