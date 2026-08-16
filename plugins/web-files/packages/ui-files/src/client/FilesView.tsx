@@ -156,9 +156,23 @@ export function FilesView(props: FilesViewProps) {
   const [filterRaw, setFilterRaw] = useState('')
   const query = activeQuery(filterRaw)
   const filtering = query !== ''
+  /** Loaded directory listings by path — TreeRows report in as they load. */
+  const loadedRef = useRef(new Map<string, readonly FilesDirEntry[]>())
+  const [, bumpLoaded] = useState(0)
+  const childrenOf = useCallback((dir: string): readonly FilesDirEntry[] | undefined => loadedRef.current.get(dir), [])
 
-  /** Filter the loaded root level; during filtering every loaded dir stays expanded. */
-  const rootFiltered = rootListing?.state === 'done' ? filterLevel(rootListing.entries, query) : []
+  const reportLoaded = useCallback((path: string, entries: readonly FilesDirEntry[] | null) => {
+    const map = loadedRef.current
+    const had = map.has(path)
+    if (entries === null) { if (!had) return; map.delete(path) }
+    else { if (had && map.get(path) === entries) return; map.set(path, entries) }
+    bumpLoaded(n => n + 1)
+  }, [])
+
+  /** Root filter with whole-loaded-subtree pruning (only live paths stay). */
+  const rootFiltered = rootListing?.state === 'done'
+    ? filterLevel(rootListing.entries, '', query, childrenOf)
+    : []
   const rootEmpty = rootListing?.state === 'done' && (filtering ? rootFiltered.length === 0 : rootListing.entries.length === 0)
 
   return (
@@ -167,35 +181,72 @@ export function FilesView(props: FilesViewProps) {
         aria-label={t('view.files')}
         style={{ width: '280px', minWidth: '200px', flexShrink: 0, overflow: 'auto', borderRight: '1px solid var(--dsw-alias-border-l2, #ccc)', display: 'flex', flexDirection: 'column' }}
       >
-        <div style={{ padding: '6px 8px', display: 'flex', gap: '4px', alignItems: 'center' }}>
-          <input
-            type="text"
-            value={filterRaw}
-            placeholder={t('filter.placeholder')}
-            onChange={event => { setFilterRaw(event.target.value) }}
-            style={{ flex: 1, minWidth: 0, padding: '3px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--dsw-alias-border-l2, #ccc)', background: 'var(--dsw-alias-bg-base, transparent)', color: 'inherit', outline: 'none' }}
-          />
-          {filtering && (
-            <button
-              type="button"
-              aria-label={t('filter.clear')}
-              onClick={() => { setFilterRaw('') }}
-              style={{ border: 'none', background: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', opacity: 0.7 }}
-            >✕</button>
-          )}
-        </div>
-        {filtering && <div style={{ opacity: 0.55, fontSize: '11px', padding: '0 10px 4px' }}>{t('filter.loadedOnly')}</div>}
+        <FilterBox value={filterRaw} onChange={setFilterRaw} placeholder={t('filter.placeholder')} clearLabel={t('filter.clear')} t={t} />
         <div style={{ flex: 1, overflow: 'auto', padding: '4px 4px' }}>
           {rootListing?.state === 'loading' && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.loading')}</div>}
           {rootListing?.state === 'error' && <div style={{ padding: '4px 8px', color: 'var(--dsw-alias-state-error-primary, #e55)' }}>{rootListing.message}</div>}
           {rootEmpty && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{filtering ? t('filter.noMatch') : t('tree.empty')}</div>}
           {rootFiltered.map(row => (
-            <TreeRow key={row.entry.name} entry={row.entry} match={row.match} parentPath="" depth={0} t={t} listDir={listDir} onOpenFile={openFile} filtering={filtering} query={query} />
+            <TreeRow key={row.entry.name} entry={row.entry} match={row.match} parentPath="" depth={0} t={t} listDir={listDir} onOpenFile={openFile} filtering={filtering} query={query} childrenOf={childrenOf} reportLoaded={reportLoaded} />
           ))}
           {rootListing?.state === 'done' && rootListing.truncated && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.truncated')}</div>}
         </div>
       </nav>
       <ViewerColumn reading={reading} t={t} sessionId={face.current.currentSessionId()} />
+    </div>
+  )
+}
+
+/** The filter box: icon, focus ring, inline clear button, subtle scope hint. */
+function FilterBox(props: {
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  clearLabel: string
+  t: T
+}) {
+  const { value, onChange, placeholder, clearLabel, t } = props
+  const [focused, setFocused] = useState(false)
+  return (
+    <div style={{ padding: '8px 8px 4px', borderBottom: '1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.04))' }}>
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', gap: '6px', padding: '0 8px',
+          borderRadius: '8px',
+          border: `1px solid ${focused ? 'var(--dsw-alias-state-business-primary, #4c6ef5)' : 'var(--dsw-alias-border-l2, rgba(0,0,0,0.1))'}`,
+          background: 'var(--dsw-alias-bg-base, transparent)',
+          boxShadow: focused ? '0 0 0 2px var(--dsw-alias-interactive-bg-hover-accent, rgba(38,49,72,0.14))' : 'none',
+          transition: 'border-color .12s, box-shadow .12s',
+        }}
+      >
+        <span aria-hidden style={{ opacity: 0.5, fontSize: '13px', flexShrink: 0 }}>🔍</span>
+        <input
+          type="text"
+          value={value}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          onChange={event => { onChange(event.target.value) }}
+          onFocus={() => { setFocused(true) }}
+          onBlur={() => { setFocused(false) }}
+          style={{ flex: 1, minWidth: 0, padding: '5px 0', fontSize: '12px', border: 'none', background: 'transparent', color: 'inherit', outline: 'none' }}
+        />
+        {value !== '' && (
+          <button
+            type="button"
+            aria-label={clearLabel}
+            title={clearLabel}
+            onClick={() => { onChange('') }}
+            style={{
+              border: 'none', background: 'var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.06))', color: 'inherit',
+              cursor: 'pointer', padding: '0', width: '16px', height: '16px', borderRadius: '50%',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', lineHeight: 1, flexShrink: 0,
+            }}
+          >✕</button>
+        )}
+      </div>
+      {value.trim() !== '' && (
+        <div style={{ opacity: 0.5, fontSize: '11px', padding: '4px 2px 0' }}>{t('filter.loadedOnly')}</div>
+      )}
     </div>
   )
 }
@@ -209,10 +260,12 @@ function TreeRow(props: {
   t: T
   filtering: boolean
   query: string
+  childrenOf: (dir: string) => readonly FilesDirEntry[] | undefined
+  reportLoaded: (path: string, entries: readonly FilesDirEntry[] | null) => void
   listDir: (path: string, signal?: AbortSignal) => Promise<Listing>
   onOpenFile: (path: string) => void
 }) {
-  const { entry, match, parentPath, depth, t, filtering, query, listDir, onOpenFile } = props
+  const { entry, match, parentPath, depth, t, filtering, query, childrenOf, reportLoaded, listDir, onOpenFile } = props
   const path = joinPath(parentPath, entry.name)
   const [userExpanded, setUserExpanded] = useState(false)
   const [listing, setListing] = useState<Listing | undefined>(undefined)
@@ -226,15 +279,18 @@ function TreeRow(props: {
     started.current = true
     const controller = new AbortController()
     setListing({ state: 'loading' })
-    void listDir(path, controller.signal).then(setListing)
+    void listDir(path, controller.signal).then(result => {
+      setListing(result)
+      reportLoaded(path, result.state === 'done' ? result.entries : null)
+    })
     return () => controller.abort()
-  }, [expanded, path, listDir])
+  }, [expanded, path, listDir, reportLoaded])
 
-  /** Children: during filtering, kept rows only (a matching name, or a match deeper). */
+  /** Children: during filtering, whole-loaded-subtree pruning like the root. */
   const childRows = listing?.state === 'done'
     ? (query === ''
         ? listing.entries.map(entry => ({ entry, match: undefined as [number, number] | undefined }))
-        : filterLevel(listing.entries, query))
+        : filterLevel(listing.entries, path, query, childrenOf))
     : []
 
   return (
@@ -259,7 +315,7 @@ function TreeRow(props: {
       {expanded && listing?.state === 'loading' && <div style={{ opacity: 0.6, padding: '2px 8px 2px 0', paddingLeft: `${(depth + 1) * 14 + 28}px` }}>{t('tree.loading')}</div>}
       {expanded && listing?.state === 'error' && <div style={{ padding: '2px 8px 2px 0', paddingLeft: `${(depth + 1) * 14 + 28}px`, color: 'var(--dsw-alias-state-error-primary, #e55)' }}>{listing.message}</div>}
       {expanded && childRows.map(row => (
-        <TreeRow key={row.entry.name} entry={row.entry} match={row.match} parentPath={path} depth={depth + 1} t={t} listDir={listDir} onOpenFile={onOpenFile} filtering={filtering} query={query} />
+        <TreeRow key={row.entry.name} entry={row.entry} match={row.match} parentPath={path} depth={depth + 1} t={t} listDir={listDir} onOpenFile={onOpenFile} filtering={filtering} query={query} childrenOf={childrenOf} reportLoaded={reportLoaded} />
       ))}
       {expanded && listing?.state === 'done' && listing.truncated && (
         <div style={{ opacity: 0.6, paddingLeft: `${(depth + 1) * 14 + 28}px` }}>{t('tree.truncated')}</div>
