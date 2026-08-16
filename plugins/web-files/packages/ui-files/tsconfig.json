@@ -6,7 +6,7 @@
     "declarationDir": "lib/types",
     "jsx": "react-jsx",
     "allowImportingTsExtensions": true,
-    "noEmit": true,
+    "emitDeclarationOnly": true,
     "lib": ["ES2023", "DOM", "DOM.Iterable"]
   },
   "include": ["src"]

@@ -16,7 +16,21 @@ const CLIENT_EXTERNALS: readonly string[] = [
   '@deepseek-ai/dsh-client-runtime/client',
 ]
 
-export default {
+export default [
+{
+  // Node (Host/loader) half: the entry cordis.yml's row imports.
+  name: ID,
+  entry: { index: 'src/index.ts' },
+  outDir: 'lib',
+  format: ['esm'],
+  platform: 'node',
+  fixedExtension: false,
+  target: 'es2023',
+  dts: false,
+  sourcemap: false,
+  clean: false,
+},
+{
   name: `${ID}/client`,
   entry: { client: 'src/client/index.ts' },
   outDir: 'lib',
@@ -38,4 +52,5 @@ export default {
     footer: 'return module.exports; } });',
     intro: 'var module = { exports: {} }; var exports = module.exports;',
   },
-} satisfies UserConfig
+} satisfies UserConfig,
+] satisfies UserConfig[]
