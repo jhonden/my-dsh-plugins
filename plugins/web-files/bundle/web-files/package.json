@@ -16,6 +16,7 @@
   },
   "files": [
     "cordis.patch.yml",
+    "lib/index.d.ts",
     "lib/index.js"
   ],
   "license": "MIT"

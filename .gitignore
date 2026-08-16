@@ -1,13 +1,8 @@
 node_modules/
 *.tsbuildinfo
 .DS_Store
-
-# Build outputs, except the published Typert descriptors typert-loader discovers
-**/lib/*
-!**/lib/typert.host.js
-!**/lib/typert.host.d.ts
-!**/lib/typert.remote-client.js
-!**/lib/typert.remote-client.d.ts
-!**/lib/typert.remote-client.d.ts.map
-**/lib/types/
 .evocode/
+
+# `lib/` build outputs are COMMITTED so `dsh plugin add github:jhonden/my-dsh-plugins/...`
+# works without a local build (pnpm installs straight from the git tree).
+# Rebuild (`pnpm build`) and commit whenever src/ changes.

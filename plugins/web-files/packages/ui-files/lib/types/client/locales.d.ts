@@ -1,0 +1,55 @@
+/** Browser copy for the files explorer, zh and en dictionaries. */
+export declare const zh: {
+    readonly 'view.files': "文件";
+    readonly 'filter.placeholder': "筛选文件名…";
+    readonly 'filter.clear': "清空筛选";
+    readonly 'filter.noMatch': "无匹配文件（仅已加载目录）";
+    readonly 'filter.loadedOnly': "递归搜索整个工作区";
+    readonly 'search.searching': "递归搜索中…";
+    readonly 'search.error': "搜索失败";
+    readonly 'search.noMatch': "无匹配文件";
+    readonly 'search.count': "{n} 个匹配";
+    readonly 'search.truncated': "结果过多，仅显示开头部分";
+    readonly 'tree.empty': "此目录为空";
+    readonly 'tree.error': "加载失败";
+    readonly 'tree.truncated': "条目过多，仅显示开头部分";
+    readonly 'tree.loading': "加载中…";
+    readonly 'viewer.loading': "加载中…";
+    readonly 'viewer.empty': "选择一个文件查看内容";
+    readonly 'viewer.truncated': "文件过大，仅显示开头部分";
+    readonly 'viewer.preview': "预览";
+    readonly 'viewer.source': "源码";
+    readonly 'viewer.error.notFound': "文件不存在";
+    readonly 'viewer.error.binary': "二进制文件不支持预览";
+    readonly 'viewer.error.outside': "路径超出工作区范围";
+    readonly 'viewer.error.other': "读取失败";
+    readonly 'viewer.bytes': "字节";
+};
+export declare const en: {
+    readonly 'view.files': "Files";
+    readonly 'filter.placeholder': "Filter files…";
+    readonly 'filter.clear': "Clear filter";
+    readonly 'filter.noMatch': "No matching files (loaded dirs only)";
+    readonly 'filter.loadedOnly': "Searching the whole workspace recursively";
+    readonly 'search.searching': "Searching…";
+    readonly 'search.error': "Search failed";
+    readonly 'search.noMatch': "No matching files";
+    readonly 'search.count': "{n} matches";
+    readonly 'search.truncated': "too many results; only the beginning is shown";
+    readonly 'tree.empty': "This directory is empty";
+    readonly 'tree.error': "Failed to load";
+    readonly 'tree.truncated': "Too many entries; only the beginning is shown";
+    readonly 'tree.loading': "Loading…";
+    readonly 'viewer.loading': "Loading…";
+    readonly 'viewer.empty': "Select a file to view its content";
+    readonly 'viewer.truncated': "File too large; only the beginning is shown";
+    readonly 'viewer.preview': "Preview";
+    readonly 'viewer.source': "Source";
+    readonly 'viewer.error.notFound': "File not found";
+    readonly 'viewer.error.binary': "Binary files are not previewable";
+    readonly 'viewer.error.outside': "Path is outside the workspace";
+    readonly 'viewer.error.other': "Read failed";
+    readonly 'viewer.bytes': "bytes";
+};
+export type FilesLocaleKey = keyof typeof en;
+//# sourceMappingURL=locales.d.ts.map
