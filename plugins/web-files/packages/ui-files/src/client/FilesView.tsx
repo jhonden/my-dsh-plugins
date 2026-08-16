@@ -388,11 +388,16 @@ function TreeRow(props: {
     started.current = true
     const controller = new AbortController()
     setListing({ state: 'loading' })
+    let disposed = false
     void listDir(path, controller.signal).then(result => {
+      // Cleanup (row unmounted — e.g. the search list replaced the tree)
+      // aborts the fetch; an aborted result is stale, never an error state,
+      // and a disposed row must not re-render at all.
+      if (disposed || controller.signal.aborted) return
       setListing(result)
       reportLoaded(path, result.state === 'done' ? result.entries : null)
     })
-    return () => controller.abort()
+    return () => { disposed = true; controller.abort() }
   }, [expanded, path, listDir, reportLoaded])
 
   /** Children: during filtering, whole-loaded-subtree pruning like the root. */
