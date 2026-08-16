@@ -45,15 +45,20 @@
 
 ## 安装
 
-每包一条命令，直接从 GitHub 安装——构建产物已入库，无需本地构建（已端到端验证）：
+一条命令——bundle 已把两个实现包声明为依赖，装它即装全部（已端到端验证）：
 
 ```sh
 dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/bundle/web-files"
-dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/files-remote"
-dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/ui-files"
-
-dsh web   # 重启后，每个会话头部出现该 tab
 ```
+
+pnpm v11 默认禁止 git 来源的子依赖；安装前在 profile 的
+`pnpm-workspace.yaml`（首次 `dsh plugin` 时生成）里放行一次：
+
+```yaml
+blockExoticSubdeps: false
+```
+
+然后 `dsh web`——每个会话头部出现该 tab。
 
 网络对 codeload.github.com 较慢时，pnpm 默认拉取超时可能撑不到 ~2 MiB 的
 tarball 下完——先放宽一次：

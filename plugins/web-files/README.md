@@ -45,16 +45,22 @@ Feature plan and feasibility tiers: [docs/roadmap.md](docs/roadmap.md).
 
 ## Install
 
-One command per package, straight from GitHub — build outputs are committed,
-so no local build is needed (verified end to end):
+ONE command — the bundle carries both implementation packages as
+dependencies, so installing it pulls everything (verified end to end):
 
 ```sh
 dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/bundle/web-files"
-dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/files-remote"
-dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/ui-files"
-
-dsh web   # restart; the tab appears in every session header
 ```
+
+pnpm v11 blocks git-hosted subdependencies by default; allow them once in
+the profile's `pnpm-workspace.yaml` (created on first `dsh plugin` use) before
+installing:
+
+```yaml
+blockExoticSubdeps: false
+```
+
+Then `dsh web` — the tab appears in every session header.
 
 On a slow link to codeload.github.com, pnpm's default fetch timeout can hit
 before the ~2 MiB tarball lands — widen it once:
