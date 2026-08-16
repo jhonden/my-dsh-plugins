@@ -10,6 +10,7 @@ A read-only workspace file explorer for the [DeepSeek Harness](https://github.co
 
 - **Files tab** in the conversation view (`对话 | 轨迹 | 文件`) — full-area explorer, not a cramped side drawer
 - **Markdown preview** for `.md` files through the platform `MarkdownText` renderer (GFM tables, task lists, KaTeX math, theme-adaptive), with a **Preview / Source** toggle
+- **Image file viewing** — click any png/jpg/gif/webp/bmp/ico/svg in the tree; it renders in the viewer through the same sandboxed route
 - **Relative images render in markdown previews** — workspace-relative `![](img.png)` references resolve through a sandboxed Host image route (workspace-confined, extension-allowlisted, same-origin-fenced)
 - **Read-only viewer with syntax highlighting and line numbers** for any text file (platform ReadBlock: shiki grammars, lazy-loaded), with byte count and truncation notice
 

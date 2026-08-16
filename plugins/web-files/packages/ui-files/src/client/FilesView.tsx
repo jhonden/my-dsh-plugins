@@ -10,6 +10,7 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { MarkdownText, ReadBlock } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReadBlockLine } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { FilesDirEntry, FilesListResult, FilesReadResult } from '@gaowen/dsh-files-remote/types'
+import { imageMediaTypeFor } from '@gaowen/dsh-files-remote/images'
 import { langFromPath } from './lang.ts'
 import { rewriteMarkdownImages } from './md-images.ts'
 import type { RpcOutcome } from './rpc.ts'
@@ -57,7 +58,21 @@ type Reading =
   | { state: 'loading'; path: string }
   | { state: 'error'; path: string; message: string }
   | { state: 'done'; path: string; content: string; bytes: number | null; truncated: boolean }
+  | { state: 'image'; path: string; url: string }
   | undefined
+
+/** The preview route images render from; matches files-remote's Host route. */
+const PREVIEW_ROUTE = '/plugins-web-files/preview'
+
+/** An image-extension path renders through the preview route, not text read. */
+function isImagePath(path: string): boolean {
+  return imageMediaTypeFor(path) !== undefined
+}
+
+/** Absolute preview-route URL for one workspace image. */
+function previewUrl(sessionId: string, path: string): string {
+  return `${globalThis.location?.origin ?? ''}${PREVIEW_ROUTE}?sessionId=${encodeURIComponent(sessionId)}&path=${path.split('/').map(encodeURIComponent).join('/')}`
+}
 
 /** A `.md` path (case-insensitive) renders through the preview by default. */
 function isMarkdown(path: string): boolean {
@@ -113,6 +128,12 @@ export function FilesView(props: FilesViewProps) {
   const openFile = useCallback(async (path: string): Promise<void> => {
     const sessionId = face.current.currentSessionId()
     if (sessionId === undefined) return
+    if (isImagePath(path)) {
+      // Images bypass the text channel: the browser fetches the preview
+      // route directly (same-origin, workspace-confined on the Host).
+      setReading({ state: 'image', path, url: previewUrl(sessionId, path) })
+      return
+    }
     setReading({ state: 'loading', path })
     const outcome = await face.current.call.read(sessionId, path)
     if (!outcome.ok) {
@@ -234,6 +255,22 @@ function ViewerColumn(props: { reading: Reading; t: T; sessionId: string | undef
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dsw-alias-state-error-primary, #e55)' }}>
         {reading.message}
+      </div>
+    )
+  }
+  if (reading.state === 'image') {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ padding: '8px 16px', opacity: 0.65, display: 'flex', gap: '12px', fontSize: '12px', borderBottom: '1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.06))' }}>
+          <span style={{ fontWeight: 600 }}>{reading.path}</span>
+        </div>
+        <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '16px' }}>
+          <img
+            src={reading.url}
+            alt={reading.path}
+            style={{ maxWidth: '100%', objectFit: 'contain', borderRadius: '4px' }}
+          />
+        </div>
       </div>
     )
   }
