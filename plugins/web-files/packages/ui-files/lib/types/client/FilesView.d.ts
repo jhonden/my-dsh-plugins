@@ -16,13 +16,6 @@ export interface FilesViewProps {
     currentSessionId: () => string | undefined;
 }
 /**
- * Open one workspace-relative path in the Files view from anywhere in the
- * app (chat link interception): requests while the view is hidden are held
- * until it next mounts.
- * @param path - workspace-relative file path.
- */
-export declare function requestOpenInFiles(path: string): void;
-/**
  * The view component. The inject face (`props`) is recreated by the slot
  * renderer on its own schedule, so no effect depends on `props` identity:
  * everything reaches the effects through a ref, and the effects key on real

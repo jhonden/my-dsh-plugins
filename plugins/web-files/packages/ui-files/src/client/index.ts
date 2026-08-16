@@ -10,8 +10,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the ui-conversation SlotMap merge (the conversation.view ring).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { FilesView, requestOpenInFiles } from './FilesView.tsx'
-import { bindLinkCwd, installLinkInterception } from './link-intercept.ts'
+import { FilesView } from './FilesView.tsx'
 import { filesRpc } from './rpc.ts'
 import { en, zh } from './locales.ts'
 
@@ -47,16 +46,7 @@ export function apply(ctx: ClientContext): void {
   const call = filesRpc()
   /** Current session id from the sessions list snapshot (`SessionListState.current`). */
   const currentSessionId = (): string | undefined => ctx.sessions.list.getSnapshot().current
-  /** Current session cwd for resolving intercepted absolute link paths. */
-  const currentCwd = (): string | undefined => {
-    const current = ctx.sessions.list.getSnapshot().current
-    return current === undefined ? undefined : ctx.sessions.list.getSnapshot().byId[current]?.cwd
-  }
-  // Chat tool-row file links open in this plugin's viewer instead of the OS
-  // opener; capture-phase interception, removed with the plugin fiber.
-  bindLinkCwd(currentCwd)
-  ctx.effect(() => installLinkInterception(path => { requestOpenInFiles(path) }, element =>
-    element.closest('[data-web-files]') !== null), 'ui-files: link interception')
+
 
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',

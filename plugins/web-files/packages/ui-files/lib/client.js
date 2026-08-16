@@ -378,31 +378,6 @@ window.__ModuleLoader__.load({
 			const slash = path.lastIndexOf("/");
 			return slash === -1 ? "" : path.slice(0, slash);
 		}
-		/** Pending open requests from outside the view (link interception). */
-		let pendingOpen;
-		/** The mounted view's activate-and-open hook; set on mount, cleared on unmount. */
-		let openSignal;
-		/**
-		* Open one workspace-relative path in the Files view from anywhere in the
-		* app (chat link interception): requests while the view is hidden are held
-		* until it next mounts.
-		* @param path - workspace-relative file path.
-		*/
-		function requestOpenInFiles(path) {
-			if (openSignal !== void 0) openSignal(path);
-			else pendingOpen = path;
-		}
-		/** Activate this view in the conversation tab ring by its stable button text. */
-		function activateSelf() {
-			const tabs = document.querySelectorAll("[role=tablist] [role=tab]");
-			for (const tab of tabs) {
-				const text = tab.textContent ?? "";
-				if (text.includes("files") || text.includes("文件")) {
-					tab.click();
-					return;
-				}
-			}
-		}
 		/**
 		* The view component. The inject face (`props`) is recreated by the slot
 		* renderer on its own schedule, so no effect depends on `props` identity:
@@ -535,20 +510,6 @@ window.__ModuleLoader__.load({
 				setTabs(next);
 				if (activeIdRef.current !== void 0 && !next.some((tab) => tab.id === activeIdRef.current)) setActiveId(next[next.length - 1]?.id);
 			}, []);
-			(0, react.useEffect)(() => {
-				openSignal = (path) => {
-					activateSelf();
-					openFile(path);
-				};
-				if (pendingOpen !== void 0) {
-					const path = pendingOpen;
-					pendingOpen = void 0;
-					openSignal(path);
-				}
-				return () => {
-					openSignal = void 0;
-				};
-			}, [openFile]);
 			/** Close one tab; activating falls to the right neighbor, else the left. */
 			const closeTab = (0, react.useCallback)((id) => {
 				if (tabsRef.current.findIndex((tab) => tab.id === id) === -1) return;
@@ -667,7 +628,6 @@ window.__ModuleLoader__.load({
 			const rootFiltered = rootListing?.state === "done" ? filterLevel(rootListing.entries, "", query, childrenOf) : [];
 			const rootEmpty = rootListing?.state === "done" && (filtering ? rootFiltered.length === 0 : rootListing.entries.length === 0);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				"data-web-files": "",
 				style: {
 					display: "flex",
 					width: "100%",
@@ -1443,89 +1403,6 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region src/client/link-intercept.ts
-		/**
-		* Document-level capture interception of the chat tool rows' file links.
-		*
-		* The shipped `openFile` chain (tool row → workspaces.openPath → Host native
-		* opener) has no override seam, and the upstream row components are neither
-		* package-exported nor platform modules, so a takeover or wrapper cannot
-		* import them. A capture-phase click listener is the one zero-upstream-change
-		* seam: the tool rows render the path as a button whose text is the display
-		* path inside a row rooted at `[data-tool]`, so a click there is diverted to
-		* this plugin's in-app viewer before React's own handlers run.
-		*
-		* The listener must be conservative: only buttons inside a `[data-tool]` row,
-		* never inside our own Files view, and only when the row looks like a file
-		* link (single path-like text). Anything unrecognized falls through to the
-		* shipped behavior untouched.
-		*/
-		/** Whether one display path is absolute (workspace-rooted or drive/UNC). */
-		function isAbsolutePath(path) {
-			return path.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith("\\\\");
-		}
-		/**
-		* Resolve the intercepted display path against the session cwd.
-		* @param displayPath - the link text (already the row's display form).
-		* @param cwd - the current session's workspace root, when known.
-		* @returns the workspace-relative path for the viewer, or undefined when the
-		*   link cannot be resolved into the workspace.
-		*/
-		function resolveLinkPath(displayPath, cwd) {
-			if (displayPath === "" || displayPath.includes("\n")) return void 0;
-			if (isAbsolutePath(displayPath)) {
-				if (cwd === void 0 || cwd === "") return void 0;
-				const normalized = displayPath.replaceAll("\\", "/");
-				const base = cwd.replaceAll("\\", "/").replace(/\/$/, "");
-				if (!normalized.startsWith(`${base}/`)) return void 0;
-				return normalized.slice(base.length + 1);
-			}
-			return displayPath;
-		}
-		/**
-		* Install the capture listener on the document.
-		* @param open - open one workspace-relative path in the Files viewer.
-		* @param isOwnSurface - whether an element sits inside this plugin's own view
-		*   (those clicks never intercept).
-		* @returns the disposer removing the listener.
-		*/
-		function installLinkInterception(open, isOwnSurface) {
-			const handler = (event) => {
-				if (!(event instanceof MouseEvent) || event.button !== 0) return;
-				if (event.defaultPrevented) return;
-				const target = event.target;
-				if (!(target instanceof Element)) return;
-				if (isOwnSurface(target)) return;
-				const button = target.closest("button");
-				if (button === null || button.closest("[data-tool]") === null) return;
-				const row = button.closest("[data-tool]");
-				if (button.closest("[data-tool]") !== row) return;
-				const text = (button.textContent ?? "").trim();
-				if (text === "" || text.includes(" ")) return;
-				const resolved = resolveLinkPath(text, documentLinkCwd());
-				if (resolved === void 0) return;
-				event.preventDefault();
-				event.stopPropagation();
-				open(resolved);
-			};
-			document.addEventListener("click", handler, true);
-			return () => {
-				document.removeEventListener("click", handler, true);
-			};
-		}
-		/** The current session cwd, supplied by the plugin at install time. */
-		let currentCwd = () => void 0;
-		/**
-		* Bind the cwd source the interceptor resolves against.
-		* @param cwd - accessor for the current session's workspace root.
-		*/
-		function bindLinkCwd(cwd) {
-			currentCwd = cwd;
-		}
-		function documentLinkCwd() {
-			return currentCwd();
-		}
-		//#endregion
 		//#region src/client/rpc.ts
 		/** Random rpcId in the same UUID shape the shipped client uses. */
 		function randomRpcId() {
@@ -1689,15 +1566,6 @@ window.__ModuleLoader__.load({
 			const call = filesRpc();
 			/** Current session id from the sessions list snapshot (`SessionListState.current`). */
 			const currentSessionId = () => ctx.sessions.list.getSnapshot().current;
-			/** Current session cwd for resolving intercepted absolute link paths. */
-			const currentCwd = () => {
-				const current = ctx.sessions.list.getSnapshot().current;
-				return current === void 0 ? void 0 : ctx.sessions.list.getSnapshot().byId[current]?.cwd;
-			};
-			bindLinkCwd(currentCwd);
-			ctx.effect(() => installLinkInterception((path) => {
-				requestOpenInFiles(path);
-			}, (element) => element.closest("[data-web-files]") !== null), "ui-files: link interception");
 			ctx.slots.inject("conversation.view", () => ctx.slots.register({
 				name: "conversation.view",
 				id: "files",
