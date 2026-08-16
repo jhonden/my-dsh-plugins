@@ -184,17 +184,24 @@ export function FilesView(props: FilesViewProps) {
     }
     const gen = ++searchGen.current
     setSearchState({ phase: 'searching', query })
+    // The controller aborts the in-flight request when a newer keystroke
+    // supersedes it; an aborted request must surface as stale, not as error.
+    const controller = new AbortController()
     const timer = setTimeout(() => {
       void (async () => {
         const sessionId = face.current.currentSessionId()
         if (sessionId === undefined) return
-        const outcome = await face.current.call.search(sessionId, filterRaw)
+        const outcome = await face.current.call.search(sessionId, filterRaw, controller.signal)
         if (gen !== searchGen.current) return
-        if (!outcome.ok) { setSearchState({ phase: 'error', query }); return }
+        const aborted = !outcome.ok && (controller.signal.aborted || outcome.error.code === 'transport' && outcome.error.message.toLowerCase().includes('abort'))
+        if (!outcome.ok) {
+          if (!aborted) setSearchState({ phase: 'error', query })
+          return
+        }
         setSearchState({ phase: 'done', query, paths: outcome.value.paths, truncated: outcome.value.truncated })
       })()
     }, 250)
-    return () => { clearTimeout(timer) }
+    return () => { clearTimeout(timer); controller.abort() }
   }, [query, filterRaw])
 
   const reportLoaded = useCallback((path: string, entries: readonly FilesDirEntry[] | null) => {
@@ -224,8 +231,11 @@ export function FilesView(props: FilesViewProps) {
           <div style={{ flex: 1, overflow: 'auto', padding: '4px 4px' }}>
             {searchState.phase === 'searching' && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('search.searching')}</div>}
             {searchState.phase === 'error' && <div style={{ padding: '4px 8px', color: 'var(--dsw-alias-state-error-primary, #e55)' }}>{t('search.error')}</div>}
-            {rootListing?.state === 'loading' && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.loading')}</div>}
-            {rootListing?.state === 'error' && <div style={{ padding: '4px 8px', color: 'var(--dsw-alias-state-error-primary, #e55)' }}>{rootListing.message}</div>}
+            {/* While a search is pending, the pre-response tree view stays; a
+                tree-load error from before the query started is not search
+                state and would misread as a failed search. */}
+            {rootListing?.state === 'loading' && !filtering && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.loading')}</div>}
+            {rootListing?.state === 'error' && !filtering && <div style={{ padding: '4px 8px', color: 'var(--dsw-alias-state-error-primary, #e55)' }}>{rootListing.message}</div>}
             {rootEmpty && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{filtering ? t('filter.noMatch') : t('tree.empty')}</div>}
             {rootFiltered.map(row => (
               <TreeRow key={row.entry.name} entry={row.entry} match={row.match} parentPath="" depth={0} t={t} listDir={listDir} onOpenFile={openFile} filtering={filtering} query={query} childrenOf={childrenOf} reportLoaded={reportLoaded} />
