@@ -42,6 +42,17 @@ Three packages in one distribution:
   `fs/*` event gate and any mounted observation policy; it is provider-neutral
   (local, sandbox, or E2B).
 
+### Image preview route
+
+`GET /plugins-web-files/preview?sessionId=…&path=…` (a `webServer` prefix
+route, not `/api`): same-origin fenced (`Sec-Fetch-Site`/`Origin`), extension
+allowlisted to eight exact media types (png/jpg/jpeg/gif/webp/bmp/ico/svg,
+served with `nosniff`), workspace-confined through the same canonical
+containment as list/read, byte-capped at 8 MiB. The client rewrites relative
+markdown image destinations to absolute URLs of this route before rendering
+(code spans and fences excluded), and image-extension files open directly
+through it.
+
 ## Attachment to the upstream extension points (all verified read-only)
 
 1. **Host data channel**: the package exports `./typert`; `dsh-typert-loader`
