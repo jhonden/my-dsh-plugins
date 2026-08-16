@@ -11,10 +11,13 @@
 - **文件 tab**（`对话 | 轨迹 | 文件`）—— 占满整个会话中区的浏览器，不是挤在边上的小抽屉
 - **Markdown 预览**：`.md` 文件经平台 `MarkdownText` 渲染器呈现（GFM 表格、任务列表、KaTeX 公式、自动适配主题），支持 **预览 / 源码** 切换
 - **只读查看 + 行号 + 语法高亮**：任意文本文件走平台 ReadBlock（shiki 语法、懒加载），显示字节数与截断提示
+
+![语法高亮](docs/screenshots/syntax-highlight.png)
 - **树栏固定**：文件树不随内容区滚动，两侧各自独立滚动
 - **明暗主题**自动跟随外壳
 
 ![深色主题](docs/screenshots/dark-theme.png)
+![深色主题·语法高亮](docs/screenshots/dark-theme-syntax-highlight.png)
 
 ## 安全模型
 

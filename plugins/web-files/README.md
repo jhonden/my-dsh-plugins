@@ -11,10 +11,13 @@ A read-only workspace file explorer for the [DeepSeek Harness](https://github.co
 - **Files tab** in the conversation view (`对话 | 轨迹 | 文件`) — full-area explorer, not a cramped side drawer
 - **Markdown preview** for `.md` files through the platform `MarkdownText` renderer (GFM tables, task lists, KaTeX math, theme-adaptive), with a **Preview / Source** toggle
 - **Read-only viewer with syntax highlighting and line numbers** for any text file (platform ReadBlock: shiki grammars, lazy-loaded), with byte count and truncation notice
+
+![Syntax highlighting](docs/screenshots/syntax-highlight.png)
 - **Pinned tree column** — the file tree never scrolls with the content pane; each side scrolls independently
 - **Light & dark themes** follow the shell automatically
 
 ![Dark theme](docs/screenshots/dark-theme.png)
+![Dark theme, syntax highlighting](docs/screenshots/dark-theme-syntax-highlight.png)
 
 ## Security model
 
