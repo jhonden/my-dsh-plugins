@@ -17,7 +17,7 @@ against each upstream release — this file records the plan, not a promise.
 
 ## v0.2 — Viewing quality (green tier)
 
-- [ ] **Code syntax highlighting** — reuse platform `CodeBlock` / `ReadBlock`
+- [x] **Code syntax highlighting** — reuse platform `CodeBlock` / `ReadBlock`
       (index-exported from `@deepseek-ai/dsh-client-ui-primitives`, shiki with
       lazy grammars). Map file extension → language id Host-side
       (`langFromPath` reachable via `dsh-tool-fs/src/*` subpath, or local copy).

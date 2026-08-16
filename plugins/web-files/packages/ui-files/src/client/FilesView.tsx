@@ -7,8 +7,10 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
+import { MarkdownText, ReadBlock } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { ReadBlockLine } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { FilesDirEntry, FilesListResult, FilesReadResult } from '@gaowen/dsh-files-remote/types'
+import { langFromPath } from './lang.ts'
 import type { RpcOutcome } from './rpc.ts'
 
 /** The data face the plugin injects into the view registration. */
@@ -59,6 +61,16 @@ type Reading =
 /** A `.md` path (case-insensitive) renders through the preview by default. */
 function isMarkdown(path: string): boolean {
   return path.toLowerCase().endsWith('.md')
+}
+
+/** Height cap before ReadBlock collapses the middle; a viewer shows far more than a chat card. */
+const VIEWER_MAX_LINES = 2000
+
+/** Split whole-file content into 1-based numbered lines, dropping the trailing empty line. */
+function toLines(content: string): ReadBlockLine[] {
+  const split = content.split('\n')
+  const rows = split[split.length - 1] === '' ? split.slice(0, -1) : split
+  return rows.map((text, index) => ({ number: index + 1, text }))
 }
 
 /**
@@ -219,6 +231,7 @@ function ViewerColumn(props: { reading: Reading; t: T }) {
   }
   const markdown = isMarkdown(reading.path)
   const showPreview = markdown && preview
+  const lines = showPreview ? undefined : toLines(reading.content)
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ padding: '8px 16px', opacity: 0.65, display: 'flex', gap: '12px', fontSize: '12px', borderBottom: '1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.06))', alignItems: 'center' }}>
@@ -251,9 +264,15 @@ function ViewerColumn(props: { reading: Reading; t: T }) {
           <MarkdownText text={reading.content} />
         </div>
       ) : (
-        <pre style={{ flex: 1, overflow: 'auto', margin: 0, padding: '12px 16px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '13px', lineHeight: '20px', fontFamily: 'var(--dsw-alias-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace)' }}>
-          {reading.content}
-        </pre>
+        <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+          <ReadBlock
+            lines={lines ?? []}
+            totalLines={lines?.length ?? 0}
+            lang={langFromPath(reading.path)}
+            maxLines={VIEWER_MAX_LINES}
+            className="web-files-code"
+          />
+        </div>
       )}
     </div>
   )
