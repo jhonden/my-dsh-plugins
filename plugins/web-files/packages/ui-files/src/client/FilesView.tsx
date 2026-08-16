@@ -161,7 +161,12 @@ export function FilesView(props: FilesViewProps) {
       setTabs(prev => {
         const next = [...prev, { id, reading: { state: 'loading' as const, path }, preview: true }]
         // Cap: evict the least-recently-activated tab (front of the list).
-        return next.length > MAX_TABS ? next.slice(next.length - MAX_TABS) : next
+        const capped = next.length > MAX_TABS ? next.slice(next.length - MAX_TABS) : next
+        // Keep the mirror in step immediately: the image path below reads
+        // `stillOpen()` before React re-renders, and a stale mirror would
+        // drop the just-created tab's content.
+        tabsRef.current = capped
+        return capped
       })
     } else {
       // Re-activating an existing tab moves it to the tail (LRU order).

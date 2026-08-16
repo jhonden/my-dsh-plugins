@@ -444,7 +444,9 @@ window.__ModuleLoader__.load({
 						},
 						preview: true
 					}];
-					return next.length > MAX_TABS ? next.slice(next.length - MAX_TABS) : next;
+					const capped = next.length > MAX_TABS ? next.slice(next.length - MAX_TABS) : next;
+					tabsRef.current = capped;
+					return capped;
 				});
 				else setTabs((prev) => {
 					const index = prev.findIndex((tab) => tab.id === id);

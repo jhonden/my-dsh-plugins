@@ -18,7 +18,14 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@26.2.0)(jiti@2.7.0)
 
-  plugins/web-files/bundle/web-files: {}
+  plugins/web-files/bundle/web-files:
+    dependencies:
+      '@gaowen/dsh-client-ui-files':
+        specifier: github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/ui-files
+        version: https://codeload.github.com/jhonden/my-dsh-plugins/tar.gz/744ca7539096ca6f9a073ce1c88b771141711936#path:plugins/web-files/packages/ui-files(@deepseek-ai/cordis@4.0.1)(@gaowen/dsh-files-remote@https://codeload.github.com/jhonden/my-dsh-plugins/tar.gz/744ca7539096ca6f9a073ce1c88b771141711936#path:plugins/web-files/packages/files-remote(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-fs@0.1.0-rc.6(6889042eed4b1d3d73c9a7bc6cc8e4e3))(@deepseek-ai/dsh-session@0.1.0-rc.6(6fd26f59436a18b115f326d6060415e6))(@deepseek-ai/dsh-typert-protocol@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1))))(react@18.3.1)
+      '@gaowen/dsh-files-remote':
+        specifier: github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/files-remote
+        version: https://codeload.github.com/jhonden/my-dsh-plugins/tar.gz/744ca7539096ca6f9a073ce1c88b771141711936#path:plugins/web-files/packages/files-remote(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-fs@0.1.0-rc.6(6889042eed4b1d3d73c9a7bc6cc8e4e3))(@deepseek-ai/dsh-session@0.1.0-rc.6(6fd26f59436a18b115f326d6060415e6))(@deepseek-ai/dsh-typert-protocol@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)))
 
   plugins/web-files/packages/files-remote:
     dependencies:
@@ -930,6 +937,23 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@gaowen/dsh-client-ui-files@https://codeload.github.com/jhonden/my-dsh-plugins/tar.gz/744ca7539096ca6f9a073ce1c88b771141711936#path:plugins/web-files/packages/ui-files':
+    resolution: {gitHosted: true, integrity: sha512-UHrHsraPCo15s1tRbnHVHl0FPL/mWlfdwQus/7WGpK/7iKvc9Bzm6hS3d8SWBUQXoAOMrvXJMExmVGY5wjFWow==, path: plugins/web-files/packages/ui-files, tarball: https://codeload.github.com/jhonden/my-dsh-plugins/tar.gz/744ca7539096ca6f9a073ce1c88b771141711936}
+    version: 0.1.0
+    peerDependencies:
+      '@deepseek-ai/cordis': '*'
+      '@gaowen/dsh-files-remote': '*'
+      react: ^18.2.0
+
+  '@gaowen/dsh-files-remote@https://codeload.github.com/jhonden/my-dsh-plugins/tar.gz/744ca7539096ca6f9a073ce1c88b771141711936#path:plugins/web-files/packages/files-remote':
+    resolution: {gitHosted: true, integrity: sha512-UHrHsraPCo15s1tRbnHVHl0FPL/mWlfdwQus/7WGpK/7iKvc9Bzm6hS3d8SWBUQXoAOMrvXJMExmVGY5wjFWow==, path: plugins/web-files/packages/files-remote, tarball: https://codeload.github.com/jhonden/my-dsh-plugins/tar.gz/744ca7539096ca6f9a073ce1c88b771141711936}
+    version: 0.1.0
+    peerDependencies:
+      '@deepseek-ai/cordis': '*'
+      '@deepseek-ai/dsh-fs': '*'
+      '@deepseek-ai/dsh-session': '*'
+      '@deepseek-ai/dsh-typert-protocol': '*'
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -3098,6 +3122,20 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.2':
     optional: true
+
+  '@gaowen/dsh-client-ui-files@https://codeload.github.com/jhonden/my-dsh-plugins/tar.gz/744ca7539096ca6f9a073ce1c88b771141711936#path:plugins/web-files/packages/ui-files(@deepseek-ai/cordis@4.0.1)(@gaowen/dsh-files-remote@https://codeload.github.com/jhonden/my-dsh-plugins/tar.gz/744ca7539096ca6f9a073ce1c88b771141711936#path:plugins/web-files/packages/files-remote(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-fs@0.1.0-rc.6(6889042eed4b1d3d73c9a7bc6cc8e4e3))(@deepseek-ai/dsh-session@0.1.0-rc.6(6fd26f59436a18b115f326d6060415e6))(@deepseek-ai/dsh-typert-protocol@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1))))(react@18.3.1)':
+    dependencies:
+      '@deepseek-ai/cordis': 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      '@gaowen/dsh-files-remote': https://codeload.github.com/jhonden/my-dsh-plugins/tar.gz/744ca7539096ca6f9a073ce1c88b771141711936#path:plugins/web-files/packages/files-remote(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-fs@0.1.0-rc.6(6889042eed4b1d3d73c9a7bc6cc8e4e3))(@deepseek-ai/dsh-session@0.1.0-rc.6(6fd26f59436a18b115f326d6060415e6))(@deepseek-ai/dsh-typert-protocol@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)))
+      react: 18.3.1
+
+  '@gaowen/dsh-files-remote@https://codeload.github.com/jhonden/my-dsh-plugins/tar.gz/744ca7539096ca6f9a073ce1c88b771141711936#path:plugins/web-files/packages/files-remote(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-fs@0.1.0-rc.6(6889042eed4b1d3d73c9a7bc6cc8e4e3))(@deepseek-ai/dsh-session@0.1.0-rc.6(6fd26f59436a18b115f326d6060415e6))(@deepseek-ai/dsh-typert-protocol@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)))':
+    dependencies:
+      '@deepseek-ai/cordis': 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      '@deepseek-ai/dsh-fs': 0.1.0-rc.6(6889042eed4b1d3d73c9a7bc6cc8e4e3)
+      '@deepseek-ai/dsh-session': 0.1.0-rc.6(6fd26f59436a18b115f326d6060415e6)
+      '@deepseek-ai/dsh-typert-protocol': 0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1))
+      zod: 4.4.3
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
