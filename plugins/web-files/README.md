@@ -15,6 +15,7 @@ A read-only workspace file explorer for the [DeepSeek Harness](https://github.co
 - **Read-only viewer with syntax highlighting and line numbers** for any text file (platform ReadBlock: shiki grammars, lazy-loaded), with byte count and truncation notice
 
 ![Syntax highlighting](docs/screenshots/syntax-highlight.png)
+- **Filename filter box** — case-insensitive substring over loaded directories, with match highlighting; directories stay as the path to deeper matches
 - **Pinned tree column** — the file tree never scrolls with the content pane; each side scrolls independently
 - **Light & dark themes** follow the shell automatically
 

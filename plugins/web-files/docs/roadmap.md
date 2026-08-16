@@ -24,7 +24,10 @@ against each upstream release — this file records the plan, not a promise.
 - [ ] **Diff/patch rendering** — platform `DiffBlock` + `DiffHunk`
       (index-exported) render arbitrary before/after; add a minimal unified
       `.diff`/`.patch` parser for on-disk diff files.
-- [ ] **Filename filter box** — pure client; filters the tree by substring.
+- [x] **Filename filter box** — pure client; filters loaded tree levels by
+      case-insensitive substring, keeps directories (matches may live deeper),
+      force-expands during filtering, highlights match ranges, and states its
+      loaded-only scope. Will grow into the v0.3 full search entry.
 - [ ] **Large-file paging** — Host `filesRemote/read` gains optional
       `offset`/`limit`; viewer loads next chunk on scroll-end. Keeps the
       512 KiB cap as the per-response bound.

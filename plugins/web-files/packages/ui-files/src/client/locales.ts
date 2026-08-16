@@ -2,6 +2,10 @@
 
 export const zh = {
   'view.files': '文件',
+  'filter.placeholder': '筛选文件名…',
+  'filter.clear': '清空筛选',
+  'filter.noMatch': '无匹配文件（仅已加载目录）',
+  'filter.loadedOnly': '仅筛选已加载的目录',
   'tree.empty': '此目录为空',
   'tree.error': '加载失败',
   'tree.truncated': '条目过多，仅显示开头部分',
@@ -20,6 +24,10 @@ export const zh = {
 
 export const en = {
   'view.files': 'Files',
+  'filter.placeholder': 'Filter files…',
+  'filter.clear': 'Clear filter',
+  'filter.noMatch': 'No matching files (loaded dirs only)',
+  'filter.loadedOnly': 'Filters loaded directories only',
   'tree.empty': 'This directory is empty',
   'tree.error': 'Failed to load',
   'tree.truncated': 'Too many entries; only the beginning is shown',

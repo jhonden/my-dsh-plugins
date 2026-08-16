@@ -12,6 +12,7 @@ import type { ReadBlockLine } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { FilesDirEntry, FilesListResult, FilesReadResult } from '@gaowen/dsh-files-remote/types'
 import { imageMediaTypeFor } from '@gaowen/dsh-files-remote/images'
 import { langFromPath } from './lang.ts'
+import { activeQuery, filterLevel } from './filter.ts'
 import { rewriteMarkdownImages } from './md-images.ts'
 import type { RpcOutcome } from './rpc.ts'
 
@@ -152,20 +153,47 @@ export function FilesView(props: FilesViewProps) {
   }, [])
 
   const t = props.t
+  const [filterRaw, setFilterRaw] = useState('')
+  const query = activeQuery(filterRaw)
+  const filtering = query !== ''
+
+  /** Filter the loaded root level; during filtering every loaded dir stays expanded. */
+  const rootFiltered = rootListing?.state === 'done' ? filterLevel(rootListing.entries, query) : []
+  const rootEmpty = rootListing?.state === 'done' && (filtering ? rootFiltered.length === 0 : rootListing.entries.length === 0)
 
   return (
     <div style={{ display: 'flex', width: '100%', flex: '1 1 0', minHeight: 0, overflow: 'hidden', color: 'var(--dsw-alias-label-primary, inherit)' }}>
       <nav
         aria-label={t('view.files')}
-        style={{ width: '280px', minWidth: '200px', flexShrink: 0, overflow: 'auto', padding: '8px 4px', borderRight: '1px solid var(--dsw-alias-border-l2, #ccc)' }}
+        style={{ width: '280px', minWidth: '200px', flexShrink: 0, overflow: 'auto', borderRight: '1px solid var(--dsw-alias-border-l2, #ccc)', display: 'flex', flexDirection: 'column' }}
       >
-        {rootListing?.state === 'loading' && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.loading')}</div>}
-        {rootListing?.state === 'error' && <div style={{ padding: '4px 8px', color: 'var(--dsw-alias-state-error-primary, #e55)' }}>{rootListing.message}</div>}
-        {rootListing?.state === 'done' && rootListing.entries.length === 0 && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.empty')}</div>}
-        {rootListing?.state === 'done' && rootListing.entries.map(child => (
-          <TreeRow key={child.name} entry={child} parentPath="" depth={0} t={t} listDir={listDir} onOpenFile={openFile} />
-        ))}
-        {rootListing?.state === 'done' && rootListing.truncated && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.truncated')}</div>}
+        <div style={{ padding: '6px 8px', display: 'flex', gap: '4px', alignItems: 'center' }}>
+          <input
+            type="text"
+            value={filterRaw}
+            placeholder={t('filter.placeholder')}
+            onChange={event => { setFilterRaw(event.target.value) }}
+            style={{ flex: 1, minWidth: 0, padding: '3px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--dsw-alias-border-l2, #ccc)', background: 'var(--dsw-alias-bg-base, transparent)', color: 'inherit', outline: 'none' }}
+          />
+          {filtering && (
+            <button
+              type="button"
+              aria-label={t('filter.clear')}
+              onClick={() => { setFilterRaw('') }}
+              style={{ border: 'none', background: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', opacity: 0.7 }}
+            >✕</button>
+          )}
+        </div>
+        {filtering && <div style={{ opacity: 0.55, fontSize: '11px', padding: '0 10px 4px' }}>{t('filter.loadedOnly')}</div>}
+        <div style={{ flex: 1, overflow: 'auto', padding: '4px 4px' }}>
+          {rootListing?.state === 'loading' && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.loading')}</div>}
+          {rootListing?.state === 'error' && <div style={{ padding: '4px 8px', color: 'var(--dsw-alias-state-error-primary, #e55)' }}>{rootListing.message}</div>}
+          {rootEmpty && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{filtering ? t('filter.noMatch') : t('tree.empty')}</div>}
+          {rootFiltered.map(row => (
+            <TreeRow key={row.entry.name} entry={row.entry} match={row.match} parentPath="" depth={0} t={t} listDir={listDir} onOpenFile={openFile} filtering={filtering} query={query} />
+          ))}
+          {rootListing?.state === 'done' && rootListing.truncated && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.truncated')}</div>}
+        </div>
       </nav>
       <ViewerColumn reading={reading} t={t} sessionId={face.current.currentSessionId()} />
     </div>
@@ -175,16 +203,21 @@ export function FilesView(props: FilesViewProps) {
 /** One tree row; directories expand lazily in place, files open in the viewer. */
 function TreeRow(props: {
   entry: FilesDirEntry
+  match: readonly [number, number] | undefined
   parentPath: string
   depth: number
   t: T
+  filtering: boolean
+  query: string
   listDir: (path: string, signal?: AbortSignal) => Promise<Listing>
   onOpenFile: (path: string) => void
 }) {
-  const { entry, parentPath, depth, t, listDir, onOpenFile } = props
+  const { entry, match, parentPath, depth, t, filtering, query, listDir, onOpenFile } = props
   const path = joinPath(parentPath, entry.name)
-  const [expanded, setExpanded] = useState(false)
+  const [userExpanded, setUserExpanded] = useState(false)
   const [listing, setListing] = useState<Listing | undefined>(undefined)
+  /** Filter mode force-expands loaded directories so matches stay reachable. */
+  const expanded = filtering || userExpanded
   /** Load-once sentinel per expansion: `listing` doubles as the data and must not re-trigger the effect. */
   const started = useRef(false)
 
@@ -196,6 +229,13 @@ function TreeRow(props: {
     void listDir(path, controller.signal).then(setListing)
     return () => controller.abort()
   }, [expanded, path, listDir])
+
+  /** Children: during filtering, kept rows only (a matching name, or a match deeper). */
+  const childRows = listing?.state === 'done'
+    ? (query === ''
+        ? listing.entries.map(entry => ({ entry, match: undefined as [number, number] | undefined }))
+        : filterLevel(listing.entries, query))
+    : []
 
   return (
     <div>
@@ -209,22 +249,38 @@ function TreeRow(props: {
         }}
         onMouseEnter={event => { event.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.06))' }}
         onMouseLeave={event => { event.currentTarget.style.background = 'none' }}
-        onClick={() => { if (entry.kind === 'directory') { setExpanded(e => !e) } else { onOpenFile(path) } }}
+        onClick={() => { if (entry.kind === 'directory') { setUserExpanded(e => !e) } else { onOpenFile(path) } }}
       >
         <span style={{ display: 'inline-block', width: '16px', opacity: 0.7 }}>
           {entry.kind === 'directory' ? (expanded ? '▾' : '▸') : ''}
         </span>
-        {entry.kind === 'directory' ? '📁' : '📄'} {entry.name}
+        {entry.kind === 'directory' ? '📁' : '📄'} <HighlightedName name={entry.name} match={match} />
       </button>
       {expanded && listing?.state === 'loading' && <div style={{ opacity: 0.6, padding: '2px 8px 2px 0', paddingLeft: `${(depth + 1) * 14 + 28}px` }}>{t('tree.loading')}</div>}
       {expanded && listing?.state === 'error' && <div style={{ padding: '2px 8px 2px 0', paddingLeft: `${(depth + 1) * 14 + 28}px`, color: 'var(--dsw-alias-state-error-primary, #e55)' }}>{listing.message}</div>}
-      {expanded && listing?.state === 'done' && listing.entries.map(child => (
-        <TreeRow key={child.name} entry={child} parentPath={path} depth={depth + 1} t={t} listDir={listDir} onOpenFile={onOpenFile} />
+      {expanded && childRows.map(row => (
+        <TreeRow key={row.entry.name} entry={row.entry} match={row.match} parentPath={path} depth={depth + 1} t={t} listDir={listDir} onOpenFile={onOpenFile} filtering={filtering} query={query} />
       ))}
       {expanded && listing?.state === 'done' && listing.truncated && (
         <div style={{ opacity: 0.6, paddingLeft: `${(depth + 1) * 14 + 28}px` }}>{t('tree.truncated')}</div>
       )}
     </div>
+  )
+}
+
+/** Name text with the matched range marked. */
+function HighlightedName(props: { name: string; match: readonly [number, number] | undefined }) {
+  const { name, match } = props
+  if (match === undefined) return <>{name}</>
+  const [start, end] = match
+  return (
+    <>
+      {name.slice(0, start)}
+      <mark style={{ background: 'var(--dsw-alias-interactive-bg-hover-accent, rgba(38,49,72,0.14))', color: 'inherit', borderRadius: '2px', padding: '0 1px' }}>
+        {name.slice(start, end)}
+      </mark>
+      {name.slice(end)}
+    </>
   )
 }
 
