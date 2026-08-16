@@ -44,5 +44,17 @@ it('opening an image file lands in the image state', async () => {
   await act(async () => { btnB?.click(); await new Promise(r => setTimeout(r, 10)) })
   // Two tabs: the tab strip renders both names.
   expect([...container.querySelectorAll('[role=tab]')].map(el => el.getAttribute('title'))).toEqual(['a.png', 'b.md'])
+
+  // Right-click the image tab: the context menu opens with four items.
+  const tabEl = [...container.querySelectorAll('[role=tab]')].find(el => el.getAttribute('title') === 'a.png') as HTMLElement
+  await act(async () => { tabEl.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 })) })
+  const menuItems = [...container.querySelectorAll('[role=menuitem]')]
+  expect(menuItems).toHaveLength(4)
+
+  // "Close others" from the image tab keeps only the image tab.
+  const closeOthers = menuItems[1] as HTMLButtonElement
+  await act(async () => { closeOthers.click(); await new Promise(r => setTimeout(r, 10)) })
+  expect([...container.querySelectorAll('[role=tab]')].map(el => el.getAttribute('title'))).toEqual(['a.png'])
+  expect(container.querySelector('img')).toBeTruthy()
   root.unmount()
 })

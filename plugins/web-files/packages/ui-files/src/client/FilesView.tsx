@@ -192,32 +192,58 @@ export function FilesView(props: FilesViewProps) {
     const outcome = await face.current.call.read(sessionId, path)
     if (!stillOpen()) return
     if (!outcome.ok) {
-      setTabs(prev => prev.map(tab => tab.id === id ? { ...tab, reading: { state: 'error', path, message: face.current.t(errorKey(outcome.error.code)) } } : tab))
+      const withError = tabsRef.current.map(tab => tab.id === id ? { ...tab, reading: { state: 'error' as const, path, message: face.current.t(errorKey(outcome.error.code)) } } : tab)
+      tabsRef.current = withError
+      setTabs(withError)
       return
     }
-    setTabs(prev => prev.map(tab => tab.id === id
-      ? { ...tab, reading: { state: 'done', path, content: outcome.value.content, bytes: outcome.value.bytes, truncated: outcome.value.truncated } }
-      : tab))
+    const withDone = tabsRef.current.map(tab => tab.id === id
+      ? { ...tab, reading: { state: 'done' as const, path, content: outcome.value.content, bytes: outcome.value.bytes, truncated: outcome.value.truncated } }
+      : tab)
+    tabsRef.current = withDone
+    setTabs(withDone)
+  }, [])
+
+  /** Commit a new tab list; the mirror owns the immediate view, state follows. */
+  const commitTabs = useCallback((next: ViewerTab[]): void => {
+    tabsRef.current = next
+    setTabs(next)
+    // If the active tab fell out of the list, activate the nearest survivor.
+    if (activeIdRef.current !== undefined && !next.some(tab => tab.id === activeIdRef.current)) {
+      setActiveId(next[next.length - 1]?.id)
+    }
   }, [])
 
   /** Close one tab; activating falls to the right neighbor, else the left. */
   const closeTab = useCallback((id: string): void => {
-    setTabs(prev => {
-      const index = prev.findIndex(tab => tab.id === id)
-      if (index === -1) return prev
-      const next = prev.filter(tab => tab.id !== id)
-      if (activeIdRef.current === id) {
-        const neighbor = next[index] ?? next[index - 1]
-        setActiveId(neighbor?.id)
-      }
-      return next
-    })
-  }, [])
+    const index = tabsRef.current.findIndex(tab => tab.id === id)
+    if (index === -1) return
+    commitTabs(tabsRef.current.filter(tab => tab.id !== id))
+  }, [commitTabs])
+
+  /** Close every tab except the anchor. */
+  const closeOthers = useCallback((id: string): void => {
+    commitTabs(tabsRef.current.filter(tab => tab.id === id))
+  }, [commitTabs])
+
+  /** Close the tabs left of the anchor (the anchor itself stays). */
+  const closeLeftOf = useCallback((id: string): void => {
+    const index = tabsRef.current.findIndex(tab => tab.id === id)
+    if (index <= 0) return
+    commitTabs(tabsRef.current.slice(index))
+  }, [commitTabs])
+
+  /** Close the tabs right of the anchor (the anchor itself stays). */
+  const closeRightOf = useCallback((id: string): void => {
+    const index = tabsRef.current.findIndex(tab => tab.id === id)
+    if (index === -1 || index === tabsRef.current.length - 1) return
+    commitTabs(tabsRef.current.slice(0, index + 1))
+  }, [commitTabs])
 
   /** Per-tab preview/source toggle. */
   const setTabPreview = useCallback((id: string, preview: boolean): void => {
-    setTabs(prev => prev.map(tab => tab.id === id ? { ...tab, preview } : tab))
-  }, [])
+    commitTabs(tabsRef.current.map(tab => tab.id === id ? { ...tab, preview } : tab))
+  }, [commitTabs])
 
   /** activeId mirror for synchronous reads inside callbacks. */
   const activeIdRef = useRef<string | undefined>(undefined)
@@ -326,6 +352,9 @@ export function FilesView(props: FilesViewProps) {
         activeId={activeId}
         onActivate={setActiveId}
         onClose={closeTab}
+        onCloseOthers={closeOthers}
+        onCloseLeftOf={closeLeftOf}
+        onCloseRightOf={closeRightOf}
         onSetPreview={setTabPreview}
         t={t}
         sessionId={face.current.currentSessionId()}
@@ -547,18 +576,21 @@ function ViewerColumn(props: {
   activeId: string | undefined
   onActivate: (id: string) => void
   onClose: (id: string) => void
+  onCloseOthers: (id: string) => void
+  onCloseLeftOf: (id: string) => void
+  onCloseRightOf: (id: string) => void
   onSetPreview: (id: string, preview: boolean) => void
   t: T
   sessionId: string | undefined
 }) {
-  const { tabs, activeId, onActivate, onClose, onSetPreview, t } = props
+  const { tabs, activeId, onActivate, onClose, onCloseOthers, onCloseLeftOf, onCloseRightOf, onSetPreview, t } = props
   const sessionId = props.sessionId
   const active = tabs.find(tab => tab.id === activeId)
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {tabs.length > 0 && (
-        <TabStrip tabs={tabs} activeId={activeId} onActivate={onActivate} onClose={onClose} />
+        <TabStrip tabs={tabs} activeId={activeId} onActivate={onActivate} onClose={onClose} onCloseOthers={onCloseOthers} onCloseLeftOf={onCloseLeftOf} onCloseRightOf={onCloseRightOf} t={t} />
       )}
       {active === undefined ? (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
@@ -571,16 +603,77 @@ function ViewerColumn(props: {
   )
 }
 
-/** The open-file tab strip: file names, close buttons, active highlight. */
+/** One context-menu request: the anchor tab id and the screen position. */
+interface TabMenu {
+  readonly id: string
+  readonly x: number
+  readonly y: number
+}
+
+/** The open-file tab strip: file names, close buttons, right-click menu. */
 function TabStrip(props: {
   tabs: readonly ViewerTab[]
   activeId: string | undefined
   onActivate: (id: string) => void
   onClose: (id: string) => void
+  onCloseOthers: (id: string) => void
+  onCloseLeftOf: (id: string) => void
+  onCloseRightOf: (id: string) => void
+  t: T
 }) {
-  const { tabs, activeId, onActivate, onClose } = props
+  const { tabs, activeId, onActivate, onClose, onCloseOthers, onCloseLeftOf, onCloseRightOf, t } = props
+  const [menu, setMenu] = useState<TabMenu | undefined>(undefined)
+
+  useEffect(() => {
+    if (menu === undefined) return
+    const dismiss = (): void => { setMenu(undefined) }
+    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') dismiss() }
+    window.addEventListener('mousedown', dismiss)
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('mousedown', dismiss); window.removeEventListener('keydown', onKey) }
+  }, [menu])
+
+  const anchorIndex = menu === undefined ? -1 : tabs.findIndex(tab => tab.id === menu.id)
+  const items: Array<{ key: Parameters<T>[0]; disabled: boolean; run: () => void }> = menu === undefined ? [] : [
+    { key: 'tab.close', disabled: false, run: () => { onClose(menu.id) } },
+    { key: 'tab.closeOthers', disabled: tabs.length <= 1, run: () => { onCloseOthers(menu.id) } },
+    { key: 'tab.closeLeft', disabled: anchorIndex <= 0, run: () => { onCloseLeftOf(menu.id) } },
+    { key: 'tab.closeRight', disabled: anchorIndex === -1 || anchorIndex === tabs.length - 1, run: () => { onCloseRightOf(menu.id) } },
+  ]
+
   return (
     <div role="tablist" style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.06))', flexShrink: 0 }}>
+      {menu !== undefined && (
+        <div
+          role="menu"
+          style={{
+            position: 'fixed', left: menu.x, top: menu.y, zIndex: 60,
+            background: 'var(--dsw-alias-bg-layer-2, #fff)', color: 'var(--dsw-alias-label-primary, inherit)',
+            border: '1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.1))', borderRadius: '8px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: '4px', minWidth: '140px',
+          }}
+          onMouseDown={event => { event.stopPropagation() }}
+        >
+          {items.map(item => (
+            <button
+              key={item.key}
+              type="button"
+              role="menuitem"
+              disabled={item.disabled}
+              onClick={() => { item.run(); setMenu(undefined) }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '5px 10px',
+                background: 'none', border: 'none', color: 'inherit', cursor: item.disabled ? 'default' : 'pointer',
+                fontSize: '12px', lineHeight: '18px', borderRadius: '4px', opacity: item.disabled ? 0.4 : 1,
+              }}
+              onMouseEnter={event => { if (!item.disabled) event.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.06))' }}
+              onMouseLeave={event => { event.currentTarget.style.background = 'none' }}
+            >
+              {t(item.key)}
+            </button>
+          ))}
+        </div>
+      )}
       {tabs.map(tab => {
         const { name } = splitPath(tab.reading.path)
         const isActive = tab.id === activeId
@@ -591,6 +684,7 @@ function TabStrip(props: {
             aria-selected={isActive}
             title={tab.reading.path}
             onClick={() => { onActivate(tab.id) }}
+            onContextMenu={event => { event.preventDefault(); setMenu({ id: tab.id, x: event.clientX, y: event.clientY }) }}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px 5px 12px',
               fontSize: '12px', lineHeight: '18px', cursor: 'pointer', flexShrink: 0,

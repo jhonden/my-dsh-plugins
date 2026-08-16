@@ -479,17 +479,19 @@ window.__ModuleLoader__.load({
 				const outcome = await face.current.call.read(sessionId, path);
 				if (!stillOpen()) return;
 				if (!outcome.ok) {
-					setTabs((prev) => prev.map((tab) => tab.id === id ? {
+					const withError = tabsRef.current.map((tab) => tab.id === id ? {
 						...tab,
 						reading: {
 							state: "error",
 							path,
 							message: face.current.t(errorKey(outcome.error.code))
 						}
-					} : tab));
+					} : tab);
+					tabsRef.current = withError;
+					setTabs(withError);
 					return;
 				}
-				setTabs((prev) => prev.map((tab) => tab.id === id ? {
+				const withDone = tabsRef.current.map((tab) => tab.id === id ? {
 					...tab,
 					reading: {
 						state: "done",
@@ -498,28 +500,44 @@ window.__ModuleLoader__.load({
 						bytes: outcome.value.bytes,
 						truncated: outcome.value.truncated
 					}
-				} : tab));
+				} : tab);
+				tabsRef.current = withDone;
+				setTabs(withDone);
+			}, []);
+			/** Commit a new tab list; the mirror owns the immediate view, state follows. */
+			const commitTabs = (0, react.useCallback)((next) => {
+				tabsRef.current = next;
+				setTabs(next);
+				if (activeIdRef.current !== void 0 && !next.some((tab) => tab.id === activeIdRef.current)) setActiveId(next[next.length - 1]?.id);
 			}, []);
 			/** Close one tab; activating falls to the right neighbor, else the left. */
 			const closeTab = (0, react.useCallback)((id) => {
-				setTabs((prev) => {
-					const index = prev.findIndex((tab) => tab.id === id);
-					if (index === -1) return prev;
-					const next = prev.filter((tab) => tab.id !== id);
-					if (activeIdRef.current === id) {
-						const neighbor = next[index] ?? next[index - 1];
-						setActiveId(neighbor?.id);
-					}
-					return next;
-				});
-			}, []);
+				if (tabsRef.current.findIndex((tab) => tab.id === id) === -1) return;
+				commitTabs(tabsRef.current.filter((tab) => tab.id !== id));
+			}, [commitTabs]);
+			/** Close every tab except the anchor. */
+			const closeOthers = (0, react.useCallback)((id) => {
+				commitTabs(tabsRef.current.filter((tab) => tab.id === id));
+			}, [commitTabs]);
+			/** Close the tabs left of the anchor (the anchor itself stays). */
+			const closeLeftOf = (0, react.useCallback)((id) => {
+				const index = tabsRef.current.findIndex((tab) => tab.id === id);
+				if (index <= 0) return;
+				commitTabs(tabsRef.current.slice(index));
+			}, [commitTabs]);
+			/** Close the tabs right of the anchor (the anchor itself stays). */
+			const closeRightOf = (0, react.useCallback)((id) => {
+				const index = tabsRef.current.findIndex((tab) => tab.id === id);
+				if (index === -1 || index === tabsRef.current.length - 1) return;
+				commitTabs(tabsRef.current.slice(0, index + 1));
+			}, [commitTabs]);
 			/** Per-tab preview/source toggle. */
 			const setTabPreview = (0, react.useCallback)((id, preview) => {
-				setTabs((prev) => prev.map((tab) => tab.id === id ? {
+				commitTabs(tabsRef.current.map((tab) => tab.id === id ? {
 					...tab,
 					preview
 				} : tab));
-			}, []);
+			}, [commitTabs]);
 			/** activeId mirror for synchronous reads inside callbacks. */
 			const activeIdRef = (0, react.useRef)(void 0);
 			activeIdRef.current = activeId;
@@ -710,6 +728,9 @@ window.__ModuleLoader__.load({
 					activeId,
 					onActivate: setActiveId,
 					onClose: closeTab,
+					onCloseOthers: closeOthers,
+					onCloseLeftOf: closeLeftOf,
+					onCloseRightOf: closeRightOf,
 					onSetPreview: setTabPreview,
 					t,
 					sessionId: face.current.currentSessionId()
@@ -1029,7 +1050,7 @@ window.__ModuleLoader__.load({
 		}
 		/** The viewer column: tab strip over empty/loading/error/content views. */
 		function ViewerColumn(props) {
-			const { tabs, activeId, onActivate, onClose, onSetPreview, t } = props;
+			const { tabs, activeId, onActivate, onClose, onCloseOthers, onCloseLeftOf, onCloseRightOf, onSetPreview, t } = props;
 			const sessionId = props.sessionId;
 			const active = tabs.find((tab) => tab.id === activeId);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -1043,7 +1064,11 @@ window.__ModuleLoader__.load({
 					tabs,
 					activeId,
 					onActivate,
-					onClose
+					onClose,
+					onCloseOthers,
+					onCloseLeftOf,
+					onCloseRightOf,
+					t
 				}), active === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 					style: {
 						flex: 1,
@@ -1061,10 +1086,57 @@ window.__ModuleLoader__.load({
 				})]
 			});
 		}
-		/** The open-file tab strip: file names, close buttons, active highlight. */
+		/** The open-file tab strip: file names, close buttons, right-click menu. */
 		function TabStrip(props) {
-			const { tabs, activeId, onActivate, onClose } = props;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+			const { tabs, activeId, onActivate, onClose, onCloseOthers, onCloseLeftOf, onCloseRightOf, t } = props;
+			const [menu, setMenu] = (0, react.useState)(void 0);
+			(0, react.useEffect)(() => {
+				if (menu === void 0) return;
+				const dismiss = () => {
+					setMenu(void 0);
+				};
+				const onKey = (event) => {
+					if (event.key === "Escape") dismiss();
+				};
+				window.addEventListener("mousedown", dismiss);
+				window.addEventListener("keydown", onKey);
+				return () => {
+					window.removeEventListener("mousedown", dismiss);
+					window.removeEventListener("keydown", onKey);
+				};
+			}, [menu]);
+			const anchorIndex = menu === void 0 ? -1 : tabs.findIndex((tab) => tab.id === menu.id);
+			const items = menu === void 0 ? [] : [
+				{
+					key: "tab.close",
+					disabled: false,
+					run: () => {
+						onClose(menu.id);
+					}
+				},
+				{
+					key: "tab.closeOthers",
+					disabled: tabs.length <= 1,
+					run: () => {
+						onCloseOthers(menu.id);
+					}
+				},
+				{
+					key: "tab.closeLeft",
+					disabled: anchorIndex <= 0,
+					run: () => {
+						onCloseLeftOf(menu.id);
+					}
+				},
+				{
+					key: "tab.closeRight",
+					disabled: anchorIndex === -1 || anchorIndex === tabs.length - 1,
+					run: () => {
+						onCloseRightOf(menu.id);
+					}
+				}
+			];
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				role: "tablist",
 				style: {
 					display: "flex",
@@ -1072,7 +1144,55 @@ window.__ModuleLoader__.load({
 					borderBottom: "1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.06))",
 					flexShrink: 0
 				},
-				children: tabs.map((tab) => {
+				children: [menu !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					role: "menu",
+					style: {
+						position: "fixed",
+						left: menu.x,
+						top: menu.y,
+						zIndex: 60,
+						background: "var(--dsw-alias-bg-layer-2, #fff)",
+						color: "var(--dsw-alias-label-primary, inherit)",
+						border: "1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.1))",
+						borderRadius: "8px",
+						boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+						padding: "4px",
+						minWidth: "140px"
+					},
+					onMouseDown: (event) => {
+						event.stopPropagation();
+					},
+					children: items.map((item) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						type: "button",
+						role: "menuitem",
+						disabled: item.disabled,
+						onClick: () => {
+							item.run();
+							setMenu(void 0);
+						},
+						style: {
+							display: "block",
+							width: "100%",
+							textAlign: "left",
+							padding: "5px 10px",
+							background: "none",
+							border: "none",
+							color: "inherit",
+							cursor: item.disabled ? "default" : "pointer",
+							fontSize: "12px",
+							lineHeight: "18px",
+							borderRadius: "4px",
+							opacity: item.disabled ? .4 : 1
+						},
+						onMouseEnter: (event) => {
+							if (!item.disabled) event.currentTarget.style.background = "var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.06))";
+						},
+						onMouseLeave: (event) => {
+							event.currentTarget.style.background = "none";
+						},
+						children: t(item.key)
+					}, item.key))
+				}), tabs.map((tab) => {
 					const { name } = splitPath(tab.reading.path);
 					const isActive = tab.id === activeId;
 					return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -1081,6 +1201,14 @@ window.__ModuleLoader__.load({
 						title: tab.reading.path,
 						onClick: () => {
 							onActivate(tab.id);
+						},
+						onContextMenu: (event) => {
+							event.preventDefault();
+							setMenu({
+								id: tab.id,
+								x: event.clientX,
+								y: event.clientY
+							});
 						},
 						style: {
 							display: "flex",
@@ -1130,7 +1258,7 @@ window.__ModuleLoader__.load({
 							children: "✕"
 						})]
 					}, tab.id);
-				})
+				})]
 			});
 		}
 		/** The active tab's body: loading, error, image, or content (md preview). */
@@ -1377,7 +1505,11 @@ window.__ModuleLoader__.load({
 			"viewer.error.binary": "二进制文件不支持预览",
 			"viewer.error.outside": "路径超出工作区范围",
 			"viewer.error.other": "读取失败",
-			"viewer.bytes": "字节"
+			"viewer.bytes": "字节",
+			"tab.close": "关闭",
+			"tab.closeOthers": "关闭其他",
+			"tab.closeLeft": "关闭左侧全部",
+			"tab.closeRight": "关闭右侧全部"
 		};
 		const en = {
 			"view.files": "Files",
@@ -1403,7 +1535,11 @@ window.__ModuleLoader__.load({
 			"viewer.error.binary": "Binary files are not previewable",
 			"viewer.error.outside": "Path is outside the workspace",
 			"viewer.error.other": "Read failed",
-			"viewer.bytes": "bytes"
+			"viewer.bytes": "bytes",
+			"tab.close": "Close",
+			"tab.closeOthers": "Close others",
+			"tab.closeLeft": "Close all to the left",
+			"tab.closeRight": "Close all to the right"
 		};
 		//#endregion
 		//#region src/client/index.ts

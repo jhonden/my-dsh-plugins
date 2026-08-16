@@ -25,6 +25,10 @@ export const zh = {
   'viewer.error.outside': '路径超出工作区范围',
   'viewer.error.other': '读取失败',
   'viewer.bytes': '字节',
+  'tab.close': '关闭',
+  'tab.closeOthers': '关闭其他',
+  'tab.closeLeft': '关闭左侧全部',
+  'tab.closeRight': '关闭右侧全部',
 } as const
 
 export const en = {
@@ -52,6 +56,10 @@ export const en = {
   'viewer.error.outside': 'Path is outside the workspace',
   'viewer.error.other': 'Read failed',
   'viewer.bytes': 'bytes',
+  'tab.close': 'Close',
+  'tab.closeOthers': 'Close others',
+  'tab.closeLeft': 'Close all to the left',
+  'tab.closeRight': 'Close all to the right',
 } as const
 
 export type FilesLocaleKey = keyof typeof en

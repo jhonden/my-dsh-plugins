@@ -24,6 +24,10 @@ export declare const zh: {
     readonly 'viewer.error.outside': "路径超出工作区范围";
     readonly 'viewer.error.other': "读取失败";
     readonly 'viewer.bytes': "字节";
+    readonly 'tab.close': "关闭";
+    readonly 'tab.closeOthers': "关闭其他";
+    readonly 'tab.closeLeft': "关闭左侧全部";
+    readonly 'tab.closeRight': "关闭右侧全部";
 };
 export declare const en: {
     readonly 'view.files': "Files";
@@ -50,6 +54,10 @@ export declare const en: {
     readonly 'viewer.error.outside': "Path is outside the workspace";
     readonly 'viewer.error.other': "Read failed";
     readonly 'viewer.bytes': "bytes";
+    readonly 'tab.close': "Close";
+    readonly 'tab.closeOthers': "Close others";
+    readonly 'tab.closeLeft': "Close all to the left";
+    readonly 'tab.closeRight': "Close all to the right";
 };
 export type FilesLocaleKey = keyof typeof en;
 //# sourceMappingURL=locales.d.ts.map
