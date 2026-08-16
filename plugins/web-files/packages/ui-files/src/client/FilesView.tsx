@@ -376,15 +376,17 @@ function TreeRow(props: {
 }) {
   const { entry, match, parentPath, depth, t, filtering, query, childrenOf, reportLoaded, listDir, onOpenFile } = props
   const path = joinPath(parentPath, entry.name)
+  const isDir = entry.kind === 'directory'
   const [userExpanded, setUserExpanded] = useState(false)
   const [listing, setListing] = useState<Listing | undefined>(undefined)
-  /** Filter mode force-expands loaded directories so matches stay reachable. */
-  const expanded = filtering || userExpanded
+  /** Filter mode force-expands loaded DIRECTORIES so matches stay reachable;
+   *  a file row never expands and never lists — its path is not a directory. */
+  const expanded = isDir && (filtering || userExpanded)
   /** Load-once sentinel per expansion: `listing` doubles as the data and must not re-trigger the effect. */
   const started = useRef(false)
 
   useEffect(() => {
-    if (!expanded || started.current) return
+    if (!isDir || !expanded || started.current) return
     started.current = true
     const controller = new AbortController()
     setListing({ state: 'loading' })
@@ -398,7 +400,7 @@ function TreeRow(props: {
       reportLoaded(path, result.state === 'done' ? result.entries : null)
     })
     return () => { disposed = true; controller.abort() }
-  }, [expanded, path, listDir, reportLoaded])
+  }, [isDir, expanded, path, listDir, reportLoaded])
 
   /** Children: during filtering, whole-loaded-subtree pruning like the root. */
   const childRows = listing?.state === 'done'
