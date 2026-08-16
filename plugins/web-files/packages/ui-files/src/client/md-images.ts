@@ -94,7 +94,9 @@ function encodePath(path: string): string {
 }
 
 /**
- * Rewrite relative image destinations to the preview route.
+ * Rewrite relative image destinations to the preview route as absolute URLs —
+ * the platform renderer permits only absolute http(s) image destinations, so
+ * a scheme-relative path would still render as alt text.
  * @param source - the markdown text.
  * @param sessionId - the session whose workspace confines the images.
  * @param baseDir - directory of the markdown file (`''` = workspace root);
@@ -104,6 +106,8 @@ function encodePath(path: string): string {
 export function rewriteMarkdownImages(source: string, sessionId: string, baseDir: string): string {
   const refs = scanInlineImages(source)
   if (refs.length === 0) return source
+  const origin = globalThis.location?.origin
+  if (origin === undefined) return source
   let out = ''
   let cursor = 0
   for (const ref of refs) {
@@ -114,7 +118,7 @@ export function rewriteMarkdownImages(source: string, sessionId: string, baseDir
     // Lexical join against the md file's directory; normalization of `..`
     // segments happens on the Host inside resolveInside's containment check.
     const joined = baseDir === '' ? pathPart : `${baseDir}/${pathPart}`
-    const url = `${PREVIEW_ROUTE}?sessionId=${encodeURIComponent(sessionId)}&path=${encodePath(joined)}${suffix}`
+    const url = `${origin}${PREVIEW_ROUTE}?sessionId=${encodeURIComponent(sessionId)}&path=${encodePath(joined)}${suffix}`
     out += source.slice(cursor, ref.start) + `(${url})`
     cursor = ref.end
   }
