@@ -16,14 +16,34 @@ Each directory under `plugins/` is one **self-contained, independently installab
 
 ## Install
 
-From a checkout of this repository, into a dsh profile (e.g. `web`):
+One command per package, straight from GitHub — build outputs are committed,
+so no local clone or build is needed:
 
 ```sh
-dsh plugin --profile web add ./plugins/<name>/bundle/<name>
-dsh plugin --profile web add ./plugins/<name>/packages/<pkg-a> ./plugins/<name>/packages/<pkg-b>
+dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/<name>/bundle/<name>"
+dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/<name>/packages/<pkg-a>"
+# … one add per package; see each plugin's README for its exact list
 ```
 
-See each plugin's README for its exact package list.
+For `web-files` specifically, copy the three ready-to-run commands from its
+[README](plugins/web-files/README.md#install).
+
+On a slow link to codeload.github.com, widen pnpm's fetch timeout once:
+
+```sh
+npm config set fetch-timeout 600000
+```
+
+### From a local checkout (plugin development)
+
+```sh
+pnpm install && pnpm build
+dsh plugin --profile web add link:$(pwd)/plugins/<name>/bundle/<name> \
+                                link:$(pwd)/plugins/<name>/packages/<pkg-a>
+```
+
+After editing source, rebuild and commit `lib/` together with the change —
+GitHub installs carry what is in the tree.
 
 ## Repository layout
 

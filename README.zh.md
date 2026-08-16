@@ -16,14 +16,31 @@
 
 ## 安装
 
-在本仓库检出后，安装进某个 dsh profile（如 `web`）：
+每包一条命令，直接从 GitHub 安装——构建产物已入库，无需本地 clone 与构建：
 
 ```sh
-dsh plugin --profile web add ./plugins/<name>/bundle/<name>
-dsh plugin --profile web add ./plugins/<name>/packages/<pkg-a> ./plugins/<name>/packages/<pkg-b>
+dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/<name>/bundle/<name>"
+dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/<name>/packages/<pkg-a>"
+# ……每个包一条；具体包清单见各插件 README
 ```
 
-每个插件的具体包清单见其 README。
+`web-files` 的三条现成命令见其 [README](plugins/web-files/README.zh.md#安装)。
+
+网络对 codeload.github.com 较慢时，先放宽一次 pnpm 拉取超时：
+
+```sh
+npm config set fetch-timeout 600000
+```
+
+### 本地检出安装（插件开发）
+
+```sh
+pnpm install && pnpm build
+dsh plugin --profile web add link:$(pwd)/plugins/<name>/bundle/<name> \
+                                link:$(pwd)/plugins/<name>/packages/<pkg-a>
+```
+
+修改源码后，构建并将 `lib/` 与变更一起提交——GitHub 直装用的是仓库树里的产物。
 
 ## 仓库结构
 
