@@ -16,21 +16,29 @@
 
 ## 安装
 
-每包一条命令，直接从 GitHub 安装——构建产物已入库，无需本地 clone 与构建：
+每个插件一条命令——bundle 已把实现包声明为依赖，且构建产物已入库，
+无需本地 clone 与构建：
 
 ```sh
 dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/<name>/bundle/<name>"
-dsh plugin --profile web add "github:jhonden/my-dsh-plugins#main&path:plugins/<name>/packages/<pkg-a>"
-# ……每个包一条；具体包清单见各插件 README
 ```
 
-`web-files` 的三条现成命令见其 [README](plugins/web-files/README.zh.md#安装)。
+两步一次性准备：
 
-网络对 codeload.github.com 较慢时，先放宽一次 pnpm 拉取超时：
+1. pnpm v11 默认禁止 git 来源的子依赖——在 profile 的
+   `pnpm-workspace.yaml`（首次 `dsh plugin` 时生成）里放行一次：
 
-```sh
-npm config set fetch-timeout 600000
-```
+   ```yaml
+   blockExoticSubdeps: false
+   ```
+
+2. 网络对 codeload.github.com 较慢时，放宽一次 pnpm 拉取超时：
+
+   ```sh
+   pnpm config set fetch-timeout 600000 --location=global
+   ```
+
+`web-files` 的现成命令见其 [README](plugins/web-files/README.zh.md#安装)。
 
 ### 本地检出安装（插件开发）
 
