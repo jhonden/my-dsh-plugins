@@ -52,10 +52,12 @@ against each upstream release — this file records the plan, not a promise.
       file when its path fires.
 - [ ] **Recent-change highlight** — same event source; tree badges files the
       agent wrote this session, fading with time.
-- [ ] **Image preview** — same Host route serves bytes with a media type
-      (png/jpeg/webp/gif/svg) read via `FileSystem.readBytes`; workspace-
-      confined like list/read. (The attachment RPC path is not usable: it
-      requires the session log to reference the image.)
+- [x] **Image preview** — shipped early (v0.2) for markdown relative images:
+      Host prefix route `/plugins-web-files/preview` (same-origin fence,
+      extension allowlist, workspace confinement, 8 MiB cap via
+      `FileSystem.readBytes`); the client rewrites relative image refs to the
+      route before rendering. Standalone image-file viewing can reuse the
+      same route.
 
 ## v1.0 — Upstream proposals (unblocks red tier)
 

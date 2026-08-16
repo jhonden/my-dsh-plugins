@@ -11,6 +11,7 @@ import { MarkdownText, ReadBlock } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReadBlockLine } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { FilesDirEntry, FilesListResult, FilesReadResult } from '@gaowen/dsh-files-remote/types'
 import { langFromPath } from './lang.ts'
+import { rewriteMarkdownImages } from './md-images.ts'
 import type { RpcOutcome } from './rpc.ts'
 
 /** The data face the plugin injects into the view registration. */
@@ -71,6 +72,12 @@ function toLines(content: string): ReadBlockLine[] {
   const split = content.split('\n')
   const rows = split[split.length - 1] === '' ? split.slice(0, -1) : split
   return rows.map((text, index) => ({ number: index + 1, text }))
+}
+
+/** Directory portion of a session-relative path (`''` for a root file). */
+function dirOf(path: string): string {
+  const slash = path.lastIndexOf('/')
+  return slash === -1 ? '' : path.slice(0, slash)
 }
 
 /**
@@ -139,7 +146,7 @@ export function FilesView(props: FilesViewProps) {
         ))}
         {rootListing?.state === 'done' && rootListing.truncated && <div style={{ opacity: 0.6, padding: '4px 8px' }}>{t('tree.truncated')}</div>}
       </nav>
-      <ViewerColumn reading={reading} t={t} />
+      <ViewerColumn reading={reading} t={t} sessionId={face.current.currentSessionId()} />
     </div>
   )
 }
@@ -201,8 +208,9 @@ function TreeRow(props: {
 }
 
 /** The viewer column: empty, loading, error, or content (markdown preview for `.md`). */
-function ViewerColumn(props: { reading: Reading; t: T }) {
+function ViewerColumn(props: { reading: Reading; t: T; sessionId: string | undefined }) {
   const { reading, t } = props
+  const sessionId = props.sessionId
   const [preview, setPreview] = useState(true)
   // A different file opening resets the toggle to the markdown default.
   const openPath = reading?.state === 'done' || reading?.state === 'error' || reading?.state === 'loading' ? reading.path : undefined
@@ -232,6 +240,11 @@ function ViewerColumn(props: { reading: Reading; t: T }) {
   const markdown = isMarkdown(reading.path)
   const showPreview = markdown && preview
   const lines = showPreview ? undefined : toLines(reading.content)
+  // Relative image refs become preview-route URLs so the platform renderer
+  // (which only permits absolute http(s)) can display workspace images.
+  const previewSource = showPreview
+    ? rewriteMarkdownImages(reading.content, sessionId ?? '', dirOf(reading.path))
+    : reading.content
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ padding: '8px 16px', opacity: 0.65, display: 'flex', gap: '12px', fontSize: '12px', borderBottom: '1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.06))', alignItems: 'center' }}>
@@ -261,7 +274,7 @@ function ViewerColumn(props: { reading: Reading; t: T }) {
       </div>
       {showPreview ? (
         <div style={{ flex: 1, overflow: 'auto', padding: '12px 20px' }}>
-          <MarkdownText text={reading.content} />
+          <MarkdownText text={previewSource} />
         </div>
       ) : (
         <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
