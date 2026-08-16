@@ -347,6 +347,8 @@ window.__ModuleLoader__.load({
 			if (code === "FILES_PATH_OUTSIDE_WORKSPACE") return "viewer.error.outside";
 			return "viewer.error.other";
 		}
+		/** Open-tab cap; the least-recently-activated tab is evicted beyond it. */
+		const MAX_TABS = 8;
 		/** The preview route images render from; matches files-remote's Host route. */
 		const PREVIEW_ROUTE = "/plugins-web-files/preview";
 		/** An image-extension path renders through the preview route, not text read. */
@@ -386,7 +388,9 @@ window.__ModuleLoader__.load({
 			const face = (0, react.useRef)(props);
 			face.current = props;
 			const [rootListing, setRootListing] = (0, react.useState)(void 0);
-			const [reading, setReading] = (0, react.useState)(void 0);
+			/** Open viewer tabs; the last entry is the most-recently activated. */
+			const [tabs, setTabs] = (0, react.useState)([]);
+			const [activeId, setActiveId] = (0, react.useState)(void 0);
 			/** Start-once sentinel: the loading state must not re-trigger the effect. */
 			const rootStarted = (0, react.useRef)(false);
 			(0, react.useEffect)(() => {
@@ -419,38 +423,99 @@ window.__ModuleLoader__.load({
 				})();
 				return () => controller.abort();
 			}, []);
+			/** Tabs mirror for synchronous reads inside async flows. */
+			const tabsRef = (0, react.useRef)([]);
+			tabsRef.current = tabs;
+			/** The id a newly opened path will use; decided before any await. */
+			const idForPath = (path) => {
+				const existing = tabsRef.current.find((tab) => tab.reading.path === path);
+				return existing !== void 0 ? existing.id : `${path}#${Date.now()}#${Math.random().toString(36).slice(2, 7)}`;
+			};
 			const openFile = (0, react.useCallback)(async (path) => {
 				const sessionId = face.current.currentSessionId();
 				if (sessionId === void 0) return;
-				if (isImagePath(path)) {
-					setReading({
-						state: "image",
-						path,
-						url: previewUrl(sessionId, path)
-					});
-					return;
-				}
-				setReading({
-					state: "loading",
-					path
+				const id = idForPath(path);
+				if (!tabsRef.current.some((tab) => tab.id === id)) setTabs((prev) => {
+					const next = [...prev, {
+						id,
+						reading: {
+							state: "loading",
+							path
+						},
+						preview: true
+					}];
+					return next.length > MAX_TABS ? next.slice(next.length - MAX_TABS) : next;
 				});
-				const outcome = await face.current.call.read(sessionId, path);
-				if (!outcome.ok) {
-					setReading({
-						state: "error",
-						path,
-						message: face.current.t(errorKey(outcome.error.code))
-					});
+				else setTabs((prev) => {
+					const index = prev.findIndex((tab) => tab.id === id);
+					if (index === -1 || index === prev.length - 1) return prev;
+					return [
+						...prev.slice(0, index),
+						...prev.slice(index + 1),
+						prev[index]
+					];
+				});
+				if (activeIdRef.current !== id) setActiveId(id);
+				const stillOpen = () => tabsRef.current.some((tab) => tab.id === id);
+				if (isImagePath(path)) {
+					if (sessionId === void 0 || !stillOpen()) return;
+					setTabs((prev) => prev.map((tab) => tab.id === id ? {
+						...tab,
+						reading: {
+							state: "image",
+							path,
+							url: previewUrl(sessionId, path)
+						}
+					} : tab));
 					return;
 				}
-				setReading({
-					state: "done",
-					path,
-					content: outcome.value.content,
-					bytes: outcome.value.bytes,
-					truncated: outcome.value.truncated
+				const outcome = await face.current.call.read(sessionId, path);
+				if (!stillOpen()) return;
+				if (!outcome.ok) {
+					setTabs((prev) => prev.map((tab) => tab.id === id ? {
+						...tab,
+						reading: {
+							state: "error",
+							path,
+							message: face.current.t(errorKey(outcome.error.code))
+						}
+					} : tab));
+					return;
+				}
+				setTabs((prev) => prev.map((tab) => tab.id === id ? {
+					...tab,
+					reading: {
+						state: "done",
+						path,
+						content: outcome.value.content,
+						bytes: outcome.value.bytes,
+						truncated: outcome.value.truncated
+					}
+				} : tab));
+			}, []);
+			/** Close one tab; activating falls to the right neighbor, else the left. */
+			const closeTab = (0, react.useCallback)((id) => {
+				setTabs((prev) => {
+					const index = prev.findIndex((tab) => tab.id === id);
+					if (index === -1) return prev;
+					const next = prev.filter((tab) => tab.id !== id);
+					if (activeIdRef.current === id) {
+						const neighbor = next[index] ?? next[index - 1];
+						setActiveId(neighbor?.id);
+					}
+					return next;
 				});
 			}, []);
+			/** Per-tab preview/source toggle. */
+			const setTabPreview = (0, react.useCallback)((id, preview) => {
+				setTabs((prev) => prev.map((tab) => tab.id === id ? {
+					...tab,
+					preview
+				} : tab));
+			}, []);
+			/** activeId mirror for synchronous reads inside callbacks. */
+			const activeIdRef = (0, react.useRef)(void 0);
+			activeIdRef.current = activeId;
 			const listDir = (0, react.useCallback)(async (path, signal) => {
 				const sessionId = face.current.currentSessionId();
 				if (sessionId === void 0) return {
@@ -634,7 +699,11 @@ window.__ModuleLoader__.load({
 						]
 					})]
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ViewerColumn, {
-					reading,
+					tabs,
+					activeId,
+					onActivate: setActiveId,
+					onClose: closeTab,
+					onSetPreview: setTabPreview,
 					t,
 					sessionId: face.current.currentSessionId()
 				})]
@@ -951,27 +1020,117 @@ window.__ModuleLoader__.load({
 				name.slice(end)
 			] });
 		}
-		/** The viewer column: empty, loading, error, or content (markdown preview for `.md`). */
+		/** The viewer column: tab strip over empty/loading/error/content views. */
 		function ViewerColumn(props) {
-			const { reading, t } = props;
+			const { tabs, activeId, onActivate, onClose, onSetPreview, t } = props;
 			const sessionId = props.sessionId;
-			const [preview, setPreview] = (0, react.useState)(true);
-			const openPath = reading?.state === "done" || reading?.state === "error" || reading?.state === "loading" ? reading.path : void 0;
-			const shownPath = (0, react.useRef)(void 0);
-			if (openPath !== shownPath.current) {
-				shownPath.current = openPath;
-				if (preview !== true) setPreview(true);
-			}
-			if (reading === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+			const active = tabs.find((tab) => tab.id === activeId);
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				style: {
 					flex: 1,
 					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-					opacity: .5
+					flexDirection: "column",
+					minHeight: 0
 				},
-				children: t("viewer.empty")
+				children: [tabs.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TabStrip, {
+					tabs,
+					activeId,
+					onActivate,
+					onClose
+				}), active === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					style: {
+						flex: 1,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						opacity: .5
+					},
+					children: t("viewer.empty")
+				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ViewerBody, {
+					tab: active,
+					onSetPreview,
+					t,
+					sessionId
+				})]
 			});
+		}
+		/** The open-file tab strip: file names, close buttons, active highlight. */
+		function TabStrip(props) {
+			const { tabs, activeId, onActivate, onClose } = props;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				role: "tablist",
+				style: {
+					display: "flex",
+					overflowX: "auto",
+					borderBottom: "1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.06))",
+					flexShrink: 0
+				},
+				children: tabs.map((tab) => {
+					const { name } = splitPath(tab.reading.path);
+					const isActive = tab.id === activeId;
+					return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						role: "tab",
+						"aria-selected": isActive,
+						title: tab.reading.path,
+						onClick: () => {
+							onActivate(tab.id);
+						},
+						style: {
+							display: "flex",
+							alignItems: "center",
+							gap: "6px",
+							padding: "5px 8px 5px 12px",
+							fontSize: "12px",
+							lineHeight: "18px",
+							cursor: "pointer",
+							flexShrink: 0,
+							borderBottom: isActive ? "2px solid var(--dsw-alias-state-business-primary, #4c6ef5)" : "2px solid transparent",
+							color: isActive ? "inherit" : "var(--dsw-alias-label-secondary, inherit)",
+							opacity: isActive ? 1 : .75,
+							maxWidth: "200px"
+						},
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							style: {
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+								whiteSpace: "nowrap"
+							},
+							children: name
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							type: "button",
+							"aria-label": "close",
+							onClick: (event) => {
+								event.stopPropagation();
+								onClose(tab.id);
+							},
+							style: {
+								border: "none",
+								background: "none",
+								color: "inherit",
+								cursor: "pointer",
+								padding: "0 2px",
+								fontSize: "11px",
+								lineHeight: 1,
+								opacity: .6,
+								borderRadius: "3px"
+							},
+							onMouseEnter: (event) => {
+								event.currentTarget.style.opacity = "1";
+							},
+							onMouseLeave: (event) => {
+								event.currentTarget.style.opacity = "0.6";
+							},
+							children: "✕"
+						})]
+					}, tab.id);
+				})
+			});
+		}
+		/** The active tab's body: loading, error, image, or content (md preview). */
+		function ViewerBody(props) {
+			const { tab, onSetPreview, t } = props;
+			const sessionId = props.sessionId;
+			const reading = tab.reading;
 			if (reading.state === "loading") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				style: {
 					flex: 1,
@@ -992,48 +1151,27 @@ window.__ModuleLoader__.load({
 				},
 				children: reading.message
 			});
-			if (reading.state === "image") return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			if (reading.state === "image") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				style: {
 					flex: 1,
+					overflow: "auto",
 					display: "flex",
-					flexDirection: "column",
-					minHeight: 0
+					alignItems: "flex-start",
+					justifyContent: "center",
+					padding: "16px"
 				},
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("img", {
+					src: reading.url,
+					alt: reading.path,
 					style: {
-						padding: "8px 16px",
-						opacity: .65,
-						display: "flex",
-						gap: "12px",
-						fontSize: "12px",
-						borderBottom: "1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.06))"
-					},
-					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						style: { fontWeight: 600 },
-						children: reading.path
-					})
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					style: {
-						flex: 1,
-						overflow: "auto",
-						display: "flex",
-						alignItems: "flex-start",
-						justifyContent: "center",
-						padding: "16px"
-					},
-					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("img", {
-						src: reading.url,
-						alt: reading.path,
-						style: {
-							maxWidth: "100%",
-							objectFit: "contain",
-							borderRadius: "4px"
-						}
-					})
-				})]
+						maxWidth: "100%",
+						objectFit: "contain",
+						borderRadius: "4px"
+					}
+				})
 			});
 			const markdown = isMarkdown(reading.path);
-			const showPreview = markdown && preview;
+			const showPreview = markdown && tab.preview;
 			const lines = showPreview ? void 0 : toLines(reading.content);
 			const previewSource = showPreview ? rewriteMarkdownImages(reading.content, sessionId ?? "", dirOf(reading.path)) : reading.content;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -1076,7 +1214,7 @@ window.__ModuleLoader__.load({
 								type: "button",
 								"aria-pressed": showPreview,
 								onClick: () => {
-									setPreview(true);
+									onSetPreview(tab.id, true);
 								},
 								style: {
 									padding: "2px 10px",
@@ -1091,7 +1229,7 @@ window.__ModuleLoader__.load({
 								type: "button",
 								"aria-pressed": !showPreview,
 								onClick: () => {
-									setPreview(false);
+									onSetPreview(tab.id, false);
 								},
 								style: {
 									padding: "2px 10px",

@@ -62,7 +62,18 @@ type Reading =
   | { state: 'error'; path: string; message: string }
   | { state: 'done'; path: string; content: string; bytes: number | null; truncated: boolean }
   | { state: 'image'; path: string; url: string }
-  | undefined
+
+/** One open viewer tab: its content state plus per-tab md preview/source toggle. */
+interface ViewerTab {
+  /** Tab identity and the path its content belongs to. */
+  id: string
+  reading: Reading
+  /** Per-tab markdown preview toggle (`true` renders the preview for `.md`). */
+  preview: boolean
+}
+
+/** Open-tab cap; the least-recently-activated tab is evicted beyond it. */
+const MAX_TABS = 8
 
 /** The preview route images render from; matches files-remote's Host route. */
 const PREVIEW_ROUTE = '/plugins-web-files/preview'
@@ -109,7 +120,9 @@ export function FilesView(props: FilesViewProps) {
   face.current = props
 
   const [rootListing, setRootListing] = useState<Listing | undefined>(undefined)
-  const [reading, setReading] = useState<Reading>(undefined)
+  /** Open viewer tabs; the last entry is the most-recently activated. */
+  const [tabs, setTabs] = useState<ViewerTab[]>([])
+  const [activeId, setActiveId] = useState<string | undefined>(undefined)
   /** Start-once sentinel: the loading state must not re-trigger the effect. */
   const rootStarted = useRef(false)
 
@@ -128,23 +141,80 @@ export function FilesView(props: FilesViewProps) {
     return () => controller.abort()
   }, [])
 
+  /** Tabs mirror for synchronous reads inside async flows. */
+  const tabsRef = useRef<ViewerTab[]>([])
+  tabsRef.current = tabs
+
+  /** The id a newly opened path will use; decided before any await. */
+  const idForPath = (path: string): string => {
+    const existing = tabsRef.current.find(tab => tab.reading.path === path)
+    return existing !== undefined ? existing.id : `${path}#${Date.now()}#${Math.random().toString(36).slice(2, 7)}`
+  }
+
   const openFile = useCallback(async (path: string): Promise<void> => {
     const sessionId = face.current.currentSessionId()
     if (sessionId === undefined) return
+    // Decide the tab id synchronously, then commit the tab state…
+    const id = idForPath(path)
+    const isDuplicate = tabsRef.current.some(tab => tab.id === id)
+    if (!isDuplicate) {
+      setTabs(prev => {
+        const next = [...prev, { id, reading: { state: 'loading' as const, path }, preview: true }]
+        // Cap: evict the least-recently-activated tab (front of the list).
+        return next.length > MAX_TABS ? next.slice(next.length - MAX_TABS) : next
+      })
+    } else {
+      // Re-activating an existing tab moves it to the tail (LRU order).
+      setTabs(prev => {
+        const index = prev.findIndex(tab => tab.id === id)
+        if (index === -1 || index === prev.length - 1) return prev
+        return [...prev.slice(0, index), ...prev.slice(index + 1), prev[index] as ViewerTab]
+      })
+    }
+    if (activeIdRef.current !== id) setActiveId(id)
+
+    // …then fill the content; the tab may be evicted by later opens meanwhile.
+    const stillOpen = (): boolean => tabsRef.current.some(tab => tab.id === id)
     if (isImagePath(path)) {
       // Images bypass the text channel: the browser fetches the preview
       // route directly (same-origin, workspace-confined on the Host).
-      setReading({ state: 'image', path, url: previewUrl(sessionId, path) })
+      if (sessionId === undefined || !stillOpen()) return
+      setTabs(prev => prev.map(tab => tab.id === id ? { ...tab, reading: { state: 'image', path, url: previewUrl(sessionId, path) } } : tab))
       return
     }
-    setReading({ state: 'loading', path })
     const outcome = await face.current.call.read(sessionId, path)
+    if (!stillOpen()) return
     if (!outcome.ok) {
-      setReading({ state: 'error', path, message: face.current.t(errorKey(outcome.error.code)) })
+      setTabs(prev => prev.map(tab => tab.id === id ? { ...tab, reading: { state: 'error', path, message: face.current.t(errorKey(outcome.error.code)) } } : tab))
       return
     }
-    setReading({ state: 'done', path, content: outcome.value.content, bytes: outcome.value.bytes, truncated: outcome.value.truncated })
+    setTabs(prev => prev.map(tab => tab.id === id
+      ? { ...tab, reading: { state: 'done', path, content: outcome.value.content, bytes: outcome.value.bytes, truncated: outcome.value.truncated } }
+      : tab))
   }, [])
+
+  /** Close one tab; activating falls to the right neighbor, else the left. */
+  const closeTab = useCallback((id: string): void => {
+    setTabs(prev => {
+      const index = prev.findIndex(tab => tab.id === id)
+      if (index === -1) return prev
+      const next = prev.filter(tab => tab.id !== id)
+      if (activeIdRef.current === id) {
+        const neighbor = next[index] ?? next[index - 1]
+        setActiveId(neighbor?.id)
+      }
+      return next
+    })
+  }, [])
+
+  /** Per-tab preview/source toggle. */
+  const setTabPreview = useCallback((id: string, preview: boolean): void => {
+    setTabs(prev => prev.map(tab => tab.id === id ? { ...tab, preview } : tab))
+  }, [])
+
+  /** activeId mirror for synchronous reads inside callbacks. */
+  const activeIdRef = useRef<string | undefined>(undefined)
+  activeIdRef.current = activeId
 
   const listDir = useCallback(async (path: string, signal?: AbortSignal): Promise<Listing> => {
     const sessionId = face.current.currentSessionId()
@@ -244,7 +314,15 @@ export function FilesView(props: FilesViewProps) {
           </div>
         )}
       </nav>
-      <ViewerColumn reading={reading} t={t} sessionId={face.current.currentSessionId()} />
+      <ViewerColumn
+        tabs={tabs}
+        activeId={activeId}
+        onActivate={setActiveId}
+        onClose={closeTab}
+        onSetPreview={setTabPreview}
+        t={t}
+        sessionId={face.current.currentSessionId()}
+      />
     </div>
   )
 }
@@ -456,26 +534,86 @@ function HighlightedName(props: { name: string; match: readonly [number, number]
   )
 }
 
-/** The viewer column: empty, loading, error, or content (markdown preview for `.md`). */
-function ViewerColumn(props: { reading: Reading; t: T; sessionId: string | undefined }) {
-  const { reading, t } = props
+/** The viewer column: tab strip over empty/loading/error/content views. */
+function ViewerColumn(props: {
+  tabs: readonly ViewerTab[]
+  activeId: string | undefined
+  onActivate: (id: string) => void
+  onClose: (id: string) => void
+  onSetPreview: (id: string, preview: boolean) => void
+  t: T
+  sessionId: string | undefined
+}) {
+  const { tabs, activeId, onActivate, onClose, onSetPreview, t } = props
   const sessionId = props.sessionId
-  const [preview, setPreview] = useState(true)
-  // A different file opening resets the toggle to the markdown default.
-  const openPath = reading?.state === 'done' || reading?.state === 'error' || reading?.state === 'loading' ? reading.path : undefined
-  const shownPath = useRef<string | undefined>(undefined)
-  if (openPath !== shownPath.current) {
-    shownPath.current = openPath
-    if (preview !== true) setPreview(true)
-  }
+  const active = tabs.find(tab => tab.id === activeId)
 
-  if (reading === undefined) {
-    return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
-        {t('viewer.empty')}
-      </div>
-    )
-  }
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      {tabs.length > 0 && (
+        <TabStrip tabs={tabs} activeId={activeId} onActivate={onActivate} onClose={onClose} />
+      )}
+      {active === undefined ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
+          {t('viewer.empty')}
+        </div>
+      ) : (
+        <ViewerBody tab={active} onSetPreview={onSetPreview} t={t} sessionId={sessionId} />
+      )}
+    </div>
+  )
+}
+
+/** The open-file tab strip: file names, close buttons, active highlight. */
+function TabStrip(props: {
+  tabs: readonly ViewerTab[]
+  activeId: string | undefined
+  onActivate: (id: string) => void
+  onClose: (id: string) => void
+}) {
+  const { tabs, activeId, onActivate, onClose } = props
+  return (
+    <div role="tablist" style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.06))', flexShrink: 0 }}>
+      {tabs.map(tab => {
+        const { name } = splitPath(tab.reading.path)
+        const isActive = tab.id === activeId
+        return (
+          <div
+            key={tab.id}
+            role="tab"
+            aria-selected={isActive}
+            title={tab.reading.path}
+            onClick={() => { onActivate(tab.id) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px 5px 12px',
+              fontSize: '12px', lineHeight: '18px', cursor: 'pointer', flexShrink: 0,
+              borderBottom: isActive ? '2px solid var(--dsw-alias-state-business-primary, #4c6ef5)' : '2px solid transparent',
+              color: isActive ? 'inherit' : 'var(--dsw-alias-label-secondary, inherit)', opacity: isActive ? 1 : 0.75,
+              maxWidth: '200px',
+            }}
+          >
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+            <button
+              type="button"
+              aria-label="close"
+              onClick={event => { event.stopPropagation(); onClose(tab.id) }}
+              style={{ border: 'none', background: 'none', color: 'inherit', cursor: 'pointer', padding: '0 2px', fontSize: '11px', lineHeight: 1, opacity: 0.6, borderRadius: '3px' }}
+              onMouseEnter={event => { event.currentTarget.style.opacity = '1' }}
+              onMouseLeave={event => { event.currentTarget.style.opacity = '0.6' }}
+            >✕</button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** The active tab's body: loading, error, image, or content (md preview). */
+function ViewerBody(props: { tab: ViewerTab; onSetPreview: (id: string, preview: boolean) => void; t: T; sessionId: string | undefined }) {
+  const { tab, onSetPreview, t } = props
+  const sessionId = props.sessionId
+  const reading = tab.reading
+
   if (reading.state === 'loading') {
     return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>{t('viewer.loading')}</div>
   }
@@ -488,22 +626,17 @@ function ViewerColumn(props: { reading: Reading; t: T; sessionId: string | undef
   }
   if (reading.state === 'image') {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ padding: '8px 16px', opacity: 0.65, display: 'flex', gap: '12px', fontSize: '12px', borderBottom: '1px solid var(--dsw-alias-border-l1, rgba(0,0,0,0.06))' }}>
-          <span style={{ fontWeight: 600 }}>{reading.path}</span>
-        </div>
-        <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '16px' }}>
-          <img
-            src={reading.url}
-            alt={reading.path}
-            style={{ maxWidth: '100%', objectFit: 'contain', borderRadius: '4px' }}
-          />
-        </div>
+      <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '16px' }}>
+        <img
+          src={reading.url}
+          alt={reading.path}
+          style={{ maxWidth: '100%', objectFit: 'contain', borderRadius: '4px' }}
+        />
       </div>
     )
   }
   const markdown = isMarkdown(reading.path)
-  const showPreview = markdown && preview
+  const showPreview = markdown && tab.preview
   const lines = showPreview ? undefined : toLines(reading.content)
   // Relative image refs become preview-route URLs so the platform renderer
   // (which only permits absolute http(s)) can display workspace images.
@@ -521,7 +654,7 @@ function ViewerColumn(props: { reading: Reading; t: T; sessionId: string | undef
             <button
               type="button"
               aria-pressed={showPreview}
-              onClick={() => { setPreview(true) }}
+              onClick={() => { onSetPreview(tab.id, true) }}
               style={{ padding: '2px 10px', border: 'none', cursor: 'pointer', fontSize: '12px', background: showPreview ? 'var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.08))' : 'transparent', color: 'inherit' }}
             >
               {t('viewer.preview')}
@@ -529,7 +662,7 @@ function ViewerColumn(props: { reading: Reading; t: T; sessionId: string | undef
             <button
               type="button"
               aria-pressed={!showPreview}
-              onClick={() => { setPreview(false) }}
+              onClick={() => { onSetPreview(tab.id, false) }}
               style={{ padding: '2px 10px', border: 'none', borderLeft: '1px solid var(--dsw-alias-border-l2, #ccc)', cursor: 'pointer', fontSize: '12px', background: !showPreview ? 'var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.08))' : 'transparent', color: 'inherit' }}
             >
               {t('viewer.source')}

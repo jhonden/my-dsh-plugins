@@ -44,8 +44,10 @@ against each upstream release — this file records the plan, not a promise.
 - [ ] **Full-text search (rg)** — content grep through the same channel;
       results grouped by file with line numbers, click → open + scroll to
       line.
-- [ ] **Viewer tabs** — multiple open files with a tab strip; per-tab
-      preview/source state.
+- [x] **Viewer tabs** — shipped: tab strip over the viewer (file name +
+      close, active highlight, horizontal scroll), per-tab md preview/source
+      state, re-opening a path activates its tab, LRU cap of 8 tabs,
+      closing the last returns to the empty view.
 - [ ] **Tree state persistence** — remember expanded dirs per workspace
       (session-store or localStorage keyed by cwd).
 

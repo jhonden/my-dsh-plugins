@@ -16,6 +16,7 @@ A read-only workspace file explorer for the [DeepSeek Harness](https://github.co
 
 ![Syntax highlighting](docs/screenshots/syntax-highlight.png)
 - **Filename filter box** — case-insensitive substring over loaded directories, with match highlighting; directories stay as the path to deeper matches
+- **Viewer tabs** — open several files side by side in a tab strip; each tab keeps its own markdown preview/source state; re-opening activates the existing tab
 - **Recursive file search** — the filter box debounce-searches the whole workspace (packaged ripgrep behind a Remote method, case-insensitive, newest-first). Results render as two segments — a dim compressed directory (middle-ellipsis keeping its tail) plus the never-truncated file name with match highlighting; click opens the file, hover shows the full path
 - **Pinned tree column** — the file tree never scrolls with the content pane; each side scrolls independently
 - **Light & dark themes** follow the shell automatically
