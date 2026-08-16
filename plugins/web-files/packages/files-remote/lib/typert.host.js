@@ -23,6 +23,14 @@ const _gaowen_dsh_files_remote_filesRemote_read_result$schema = z.object({
   'truncated': z.boolean(),
   'content': z.string(),
 })
+const _gaowen_dsh_files_remote_filesRemote_search_parameter_0$schema = z.intersection(z.string(), z.unknown())
+const _gaowen_dsh_files_remote_filesRemote_search_parameter_1$schema = z.object({
+  'query': z.string(),
+})
+const _gaowen_dsh_files_remote_filesRemote_search_result$schema = z.object({
+  'paths': z.array(z.string()),
+  'truncated': z.boolean(),
+})
 
 export const TYPERT = {
   package: '@gaowen/dsh-files-remote',
@@ -64,7 +72,7 @@ export const TYPERT = {
         typeSymbol: '@gaowen/dsh-files-remote/types#FilesListResult',
         schema: _gaowen_dsh_files_remote_filesRemote_list_result$schema,
       },
-      sourceLocation: {"file":"packages/files-remote-tmp/src/index.ts","line":76,"column":9},
+      sourceLocation: {"file":"packages/files-remote-tmp/src/index.ts","line":198,"column":9},
     },
     {
       id: '@gaowen/dsh-files-remote#filesRemote/read',
@@ -100,7 +108,43 @@ export const TYPERT = {
         typeSymbol: '@gaowen/dsh-files-remote/types#FilesReadResult',
         schema: _gaowen_dsh_files_remote_filesRemote_read_result$schema,
       },
-      sourceLocation: {"file":"packages/files-remote-tmp/src/index.ts","line":112,"column":9},
+      sourceLocation: {"file":"packages/files-remote-tmp/src/index.ts","line":233,"column":9},
+    },
+    {
+      id: '@gaowen/dsh-files-remote#filesRemote/search',
+      service: 'filesRemote',
+      namespace: 'filesRemote',
+      method: 'search',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'session',
+          wire: 'sessionId',
+          source: 'lookup',
+          lookup: 'session',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@deepseek-ai/dsh-session/types#SessionId',
+            schema: _gaowen_dsh_files_remote_filesRemote_search_parameter_0$schema,
+          },
+        },
+        {
+          name: 'request',
+          wire: 'request',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@gaowen/dsh-files-remote/types#FilesSearchRequest',
+            schema: _gaowen_dsh_files_remote_filesRemote_search_parameter_1$schema,
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@gaowen/dsh-files-remote/types#FilesSearchResult',
+        schema: _gaowen_dsh_files_remote_filesRemote_search_result$schema,
+      },
+      sourceLocation: {"file":"packages/files-remote-tmp/src/index.ts","line":169,"column":9},
     },
   ],
   model: {
@@ -113,6 +157,13 @@ export const TYPERT = {
         "key": "filesRemote",
         "exportName": "FilesRemoteService",
         "members": [
+          {
+            "kind": "method",
+            "name": "search",
+            "signature": "@Remote('search') async search(session: Session, request: FilesSearchRequest): Promise<FilesSearchResult>",
+            "summary": "Recursively find workspace file paths whose path contains the query (case-insensitive), newest-modified first, through the packaged ripgrep binary.",
+            "jsDoc": "/**\n * Recursively find workspace file paths whose path contains the query\n * (case-insensitive), newest-modified first, through the packaged ripgrep\n * binary. The session cwd is the rg workdir, so the search is\n * workspace-confined by construction; VCS metadata directories are pruned\n * and node_modules follows gitignore when present.\n * @param session - calling session; its immutable header cwd is the search root.\n * @param request - the path substring.\n * @returns matched workspace-relative paths, capped, with a truncated flag.\n */"
+          },
           {
             "kind": "method",
             "name": "list",
@@ -134,6 +185,18 @@ export const TYPERT = {
             "declaration": "export type AgentCancelCause = { readonly kind: 'user'; } | { readonly kind: 'parent'; } | { readonly kind: 'hook'; readonly reason: string; } | { readonly kind: 'disposed'; };"
           },
           {
+            "name": "ApprovalOutcome",
+            "declaration": "export type ApprovalOutcome = 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable';"
+          },
+          {
+            "name": "ApprovalPolicy",
+            "declaration": "export type ApprovalPolicy = 'ask' | 'never';"
+          },
+          {
+            "name": "ApprovalRequestId",
+            "declaration": "export type ApprovalRequestId = Branded<'ApprovalRequestId'>;"
+          },
+          {
             "name": "AssistantMessage",
             "declaration": "export interface AssistantMessage extends Message {\n    readonly role: 'assistant';\n    readonly source: ModelMessageSource;\n}"
           },
@@ -152,6 +215,14 @@ export const TYPERT = {
           {
             "name": "CallId",
             "declaration": "export type CallId = Branded<'CallId'>;"
+          },
+          {
+            "name": "CodeDispatchEventData",
+            "declaration": "export interface CodeDispatchEventData extends CodeDispatchStartEventData {\n    isError: boolean;\n    content: ContentBlock[];\n}"
+          },
+          {
+            "name": "CodeDispatchStartEventData",
+            "declaration": "export interface CodeDispatchStartEventData {\n    rootCallId: CallId;\n    parentCallId: CallId;\n    subCallId: CallId;\n    name: string;\n    arguments: unknown;\n}"
           },
           {
             "name": "ContentBlock",
@@ -198,6 +269,14 @@ export const TYPERT = {
             "declaration": "export interface FilesReadResult {\n    path: string;\n    bytes: number | null;\n    truncated: boolean;\n    content: string;\n}"
           },
           {
+            "name": "FilesSearchRequest",
+            "declaration": "export interface FilesSearchRequest {\n    query: string;\n}"
+          },
+          {
+            "name": "FilesSearchResult",
+            "declaration": "export interface FilesSearchResult {\n    paths: string[];\n    truncated: boolean;\n}"
+          },
+          {
             "name": "FinishReason",
             "declaration": "export type FinishReason = FinishReasonMap[keyof FinishReasonMap];"
           },
@@ -216,6 +295,10 @@ export const TYPERT = {
           {
             "name": "ImageMediaType",
             "declaration": "export type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';"
+          },
+          {
+            "name": "InboxTarget",
+            "declaration": "export type InboxTarget = 'next-turn' | 'next-step';"
           },
           {
             "name": "JsonValue",
@@ -283,7 +366,7 @@ export const TYPERT = {
           },
           {
             "name": "SessionEventMap",
-            "declaration": "export interface SessionEventMap {\n    'turn/start': { turn: number; };\n    'turn/end': { turn: number; reason: TurnEndReason; };\n    'step/start': { turn: number; step: number; };\n    'step/end': { turn: number; step: number; };\n    'user/message': UserMessage;\n    'assistant/chunk': { turn: number; step: number; chunk: StreamChunk; };\n    'assistant/message': { turn: number; step: number; message: AssistantMessage; usage?: TokenUsage; };\n    'tool/call': { turn: number; step: number; callId: CallId; name: string; arguments: string; };\n    'tool/result': { turn: number; step: number; message: ToolResultMessage; error?: { name: string; code: string; }; meta?: JsonValue; };\n    'todo/write': { todos: TodoItem[]; };\n    'request/header': { header: EpochHeader; reason: RequestHeaderReason; };\n    'request/context': RequestContext;\n    'session/end-seed': Record<string, never>;\n}"
+            "declaration": "export interface SessionEventMap {\n    'turn/start': { turn: number; };\n    'turn/end': { turn: number; reason: TurnEndReason; };\n    'step/start': { turn: number; step: number; };\n    'step/end': { turn: number; step: number; };\n    'user/message': UserMessage;\n    'assistant/chunk': { turn: number; step: number; chunk: StreamChunk; };\n    'assistant/message': { turn: number; step: number; message: AssistantMessage; usage?: TokenUsage; };\n    'tool/call': { turn: number; step: number; callId: CallId; name: string; arguments: string; };\n    'tool/result': { turn: number; step: number; message: ToolResultMessage; error?: { name: string; code: string; }; meta?: JsonValue; };\n    'todo/write': { todos: TodoItem[]; };\n    'request/header': { header: EpochHeader; reason: RequestHeaderReason; };\n    'request/context': RequestContext;\n    'session/end-seed': Record<string, never>;\n    'agent/inbox/spliced': { target: InboxTarget; start: number; removedCount?: number; inserted: UserMessage[]; outcome?: 'canceled'; };\n    'approval/asked': { id: ApprovalRequestId; toolName: string; callId?: CallId; reason?: string; };\n    'approval/decided': { id: ApprovalRequestId; outcome: ApprovalOutcome; };\n    'approval/policy': { policy: ApprovalPolicy; source?: 'delegation'; };\n    'tool/code-dispatch-start': CodeDispatchStartEventData;\n    'tool/code-dispatch': CodeDispatchEventData;\n}"
           },
           {
             "name": "SessionEventType",

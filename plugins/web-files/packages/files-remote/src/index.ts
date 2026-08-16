@@ -24,7 +24,7 @@ import type {
   FilesSearchResult,
 } from './types.ts'
 import { runRipgrep } from '@deepseek-ai/dsh-tool-fs-search'
-import { IMAGE_MEDIA_TYPES, MAX_IMAGE_BYTES, imageMediaTypeFor } from './images.ts'
+import { MAX_IMAGE_BYTES, imageMediaTypeFor } from './images.ts'
 
 export type * from './types.ts'
 
@@ -167,14 +167,15 @@ export class FilesRemoteService extends TypertRemoteService {
    */
   @Remote('search')
   async search(session: Session, request: FilesSearchRequest): Promise<FilesSearchResult> {
-    const query = request.query.trim().toLowerCase()
+    const query = request.query.trim()
     if (query === '') return { paths: [], truncated: false }
     const run = await runRipgrep(
       this.ctx,
       // runRipgrep consumes exactly exec.signal and exec.agent.session.header.cwd.
       { signal: new AbortController().signal, agent: { session } } as never,
       'filesRemote/search',
-      ['--files', '--sort=modified', `--glob=**/*${globEscape(query)}*`,
+      // --iglob: case-insensitive glob matching (README matches readme).
+      ['--files', '--sort=modified', `--iglob=**/*${globEscape(query)}*`,
         '--glob=!**/.git', '--glob=!**/.git/**', '--glob=!**/.hg', '--glob=!**/.hg/**',
         '--glob=!**/.svn', '--glob=!**/.svn/**'],
       4 * 1024 * 1024,

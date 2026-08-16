@@ -4,16 +4,18 @@ import type {
   TypertRemoteContribution,
 } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { FilesListRequest, FilesListResult, FilesReadRequest, FilesReadResult } from '@gaowen/dsh-files-remote/types'
+import type { FilesListRequest, FilesListResult, FilesReadRequest, FilesReadResult, FilesSearchRequest, FilesSearchResult } from '@gaowen/dsh-files-remote/types'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertRemoteNamespace$66696c657352656d6f7465 {
     list: (sessionId: SessionId, request: FilesListRequest) => Promise<RemoteResult<FilesListResult>>
     read: (sessionId: SessionId, request: FilesReadRequest) => Promise<RemoteResult<FilesReadResult>>
+    search: (sessionId: SessionId, request: FilesSearchRequest) => Promise<RemoteResult<FilesSearchResult>>
   }
   interface TypertRemoteMap {
     'filesRemote/list': (sessionId: SessionId, request: FilesListRequest) => Promise<RemoteResult<FilesListResult>>
     'filesRemote/read': (sessionId: SessionId, request: FilesReadRequest) => Promise<RemoteResult<FilesReadResult>>
+    'filesRemote/search': (sessionId: SessionId, request: FilesSearchRequest) => Promise<RemoteResult<FilesSearchResult>>
   }
   interface TypertRemoteNamespaceMap {
     'filesRemote': TypertRemoteNamespace$66696c657352656d6f7465

@@ -23,6 +23,14 @@ const _gaowen_dsh_files_remote_filesRemote_read_result$schema = z.object({
   'truncated': z.boolean(),
   'content': z.string(),
 })
+const _gaowen_dsh_files_remote_filesRemote_search_parameter_0$schema = z.intersection(z.string(), z.unknown())
+const _gaowen_dsh_files_remote_filesRemote_search_parameter_1$schema = z.object({
+  'query': z.string(),
+})
+const _gaowen_dsh_files_remote_filesRemote_search_result$schema = z.object({
+  'paths': z.array(z.string()),
+  'truncated': z.boolean(),
+})
 
 export const TYPERT_REMOTE = {
   package: '@gaowen/dsh-files-remote',
@@ -61,7 +69,7 @@ export const TYPERT_REMOTE = {
         typeSymbol: '@gaowen/dsh-files-remote/types#FilesListResult',
         schema: _gaowen_dsh_files_remote_filesRemote_list_result$schema,
       },
-      sourceLocation: {"file":"packages/files-remote-tmp/src/index.ts","line":76,"column":9},
+      sourceLocation: {"file":"packages/files-remote-tmp/src/index.ts","line":198,"column":9},
     },
     {
       id: '@gaowen/dsh-files-remote#filesRemote/read',
@@ -97,7 +105,43 @@ export const TYPERT_REMOTE = {
         typeSymbol: '@gaowen/dsh-files-remote/types#FilesReadResult',
         schema: _gaowen_dsh_files_remote_filesRemote_read_result$schema,
       },
-      sourceLocation: {"file":"packages/files-remote-tmp/src/index.ts","line":112,"column":9},
+      sourceLocation: {"file":"packages/files-remote-tmp/src/index.ts","line":233,"column":9},
+    },
+    {
+      id: '@gaowen/dsh-files-remote#filesRemote/search',
+      service: 'filesRemote',
+      namespace: 'filesRemote',
+      method: 'search',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'session',
+          wire: 'sessionId',
+          source: 'lookup',
+          lookup: 'session',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@deepseek-ai/dsh-session/types#SessionId',
+            schema: _gaowen_dsh_files_remote_filesRemote_search_parameter_0$schema,
+          },
+        },
+        {
+          name: 'request',
+          wire: 'request',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@gaowen/dsh-files-remote/types#FilesSearchRequest',
+            schema: _gaowen_dsh_files_remote_filesRemote_search_parameter_1$schema,
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@gaowen/dsh-files-remote/types#FilesSearchResult',
+        schema: _gaowen_dsh_files_remote_filesRemote_search_result$schema,
+      },
+      sourceLocation: {"file":"packages/files-remote-tmp/src/index.ts","line":169,"column":9},
     },
   ],
 }
