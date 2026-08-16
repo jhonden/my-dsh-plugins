@@ -1,5 +1,7 @@
 # my-dsh-plugins
 
+English | [中文](README.zh.md)
+
 Plugin collection for the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh).
 
 Each directory under `plugins/` is one **self-contained, independently installable plugin distribution** — its own packages, its own bundle, no cross-plugin coupling. Zero upstream code changes; everything attaches through dsh extension points (Typert Remote services, slot registrations, profile bundles).
@@ -9,6 +11,8 @@ Each directory under `plugins/` is one **self-contained, independently installab
 | Plugin | What it adds |
 |---|---|
 | [`web-files`](plugins/web-files/) | A "Files" tab in the Web client's conversation view: a workspace file tree with a read-only viewer (markdown preview via the platform renderer) backed by a sandboxed Host Remote service |
+
+![web-files](plugins/web-files/docs/screenshots/overview.png)
 
 ## Install
 

@@ -1,29 +1,53 @@
 # web-files
 
-A read-only workspace file explorer for the dsh Web client. Adds a **Files** tab beside Chat and Trajectory in the conversation view: a lazily-expanding file tree on the left, a read-only viewer on the right (markdown preview through the platform `MarkdownText` renderer, source toggle, plain text otherwise).
+English | [中文](README.zh.md)
 
-- **Host half** (`packages/files-remote`): `filesRemote/list` / `filesRemote/read` Typert Remote methods over `ctx.fs`, canonically confined to the calling session's cwd (symlink escapes rejected), with entry and byte bounds.
-- **Client half** (`packages/ui-files`): one `conversation.view` slot registration (`id: 'files'`, order 20); data fetched directly from the gateway-claimed `/api/filesRemote/*` endpoints.
-- **Bundle** (`bundle/web-files`): the installable profile patch layer.
+A read-only workspace file explorer for the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh) Web client. Adds a **Files** tab beside Chat and Trajectory in the conversation view: a lazily-expanding file tree on the left, a read-only viewer on the right.
 
-See [docs/design.md](docs/design.md) for the full design (problem, wire contract, security boundary, alternatives considered).
+![Files tab overview](docs/screenshots/overview.png)
+
+## Features
+
+- **Files tab** in the conversation view (`对话 | 轨迹 | 文件`) — full-area explorer, not a cramped side drawer
+- **Markdown preview** for `.md` files through the platform `MarkdownText` renderer (GFM tables, task lists, KaTeX math, theme-adaptive), with a **Preview / Source** toggle
+- **Read-only text viewer** for any other text file, with byte count and truncation notice
+- **Pinned tree column** — the file tree never scrolls with the content pane; each side scrolls independently
+- **Light & dark themes** follow the shell automatically
+
+![Dark theme](docs/screenshots/dark-theme.png)
+
+## Security model
+
+The browser never touches the filesystem directly. All reads go through a Host-side Typert Remote service (`filesRemote`) that:
+
+- resolves every path through `ctx.fs` and requires canonical containment inside the calling session's workspace — `..` traversal and symlink escapes are rejected;
+- bounds directory listings (`maxEntries`, default 1000) and file reads (`maxReadChars`, default 512 KiB) with explicit `truncated` flags;
+- is strictly read-only: no write, rename, or delete operation exists on the surface.
+
+## Package layout
+
+| Package | Role |
+|---|---|
+| `packages/files-remote` | Host half: `filesRemote/list` / `filesRemote/read` Remote methods over `ctx.fs` |
+| `packages/ui-files` | Client half: one `conversation.view` slot registration (`id: 'files'`) + browser bundle |
+| `bundle/web-files` | Installable profile bundle (the `cordis.patch.yml` patch layer) |
+
+Design details (wire contract, alternatives considered, acceptance criteria): [docs/design.md](docs/design.md).
 
 ## Install
 
-```sh
-dsh plugin --profile web add ./bundle/web-files
-dsh plugin --profile web add ./packages/files-remote ./packages/ui-files
-```
-
-Then restart the profile; the tab appears in every session header.
-
-## Build & test
-
-From the repository root (`pnpm build && pnpm test`), or locally:
+From a checkout of this repository (build first — `lib/` artifacts are gitignored except Typert descriptors):
 
 ```sh
-cd packages/ui-files && npx tsdown   # rebuild the browser bundle
-pnpm vitest run                      # unit tests (containment, bounds, HMR)
+pnpm install && pnpm build
+
+dsh plugin --profile web add link:$(pwd)/plugins/web-files/bundle/web-files
+dsh plugin --profile web add link:$(pwd)/plugins/web-files/packages/files-remote \
+                                link:$(pwd)/plugins/web-files/packages/ui-files
+
+dsh web   # restart; the tab appears in every session header
 ```
 
-After editing `packages/files-remote`, regenerate the Typert descriptors with the upstream generator (see the repository README) — they are published artifacts.
+## Compatibility
+
+Built against dsh `0.1.0-rc` packages; zero upstream code changes — everything attaches through documented extension points (Typert Remote service discovery, slot registrations, profile bundles).
