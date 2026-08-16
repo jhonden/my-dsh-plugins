@@ -2,7 +2,6 @@
   "name": "@gaowen/dsh-bundle-web-files",
   "description": "dsh profile bundle: workspace file explorer (Host files Remote service + Web client plugin)",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -19,5 +18,9 @@
     "lib/index.d.ts",
     "lib/index.js"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@gaowen/dsh-files-remote": "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/files-remote",
+    "@gaowen/dsh-client-ui-files": "github:jhonden/my-dsh-plugins#main&path:plugins/web-files/packages/ui-files"
+  }
 }
