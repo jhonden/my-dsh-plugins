@@ -79,7 +79,9 @@ rest; propose once this plugin has users:
    retires.
 2. An override seam on `openFile` (currently hardcoded to
    `workspaces.openPath` in ui-conversation apply.ts) → clicking file paths in
-   chat/diff cards opens in-app.
+   chat/diff cards opens in-app. (Interim: a document-level capture-phase
+   interception in the plugin already diverts tool-row file links to the
+   Files view; the upstream seam would replace that interception.)
 
 Explicitly deferred (no plan):
 

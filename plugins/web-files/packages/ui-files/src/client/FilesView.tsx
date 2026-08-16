@@ -109,6 +109,35 @@ function dirOf(path: string): string {
   return slash === -1 ? '' : path.slice(0, slash)
 }
 
+/** Pending open requests from outside the view (link interception). */
+let pendingOpen: string | undefined
+
+/** The mounted view's activate-and-open hook; set on mount, cleared on unmount. */
+let openSignal: ((path: string) => void) | undefined
+
+/**
+ * Open one workspace-relative path in the Files view from anywhere in the
+ * app (chat link interception): requests while the view is hidden are held
+ * until it next mounts.
+ * @param path - workspace-relative file path.
+ */
+export function requestOpenInFiles(path: string): void {
+  if (openSignal !== undefined) openSignal(path)
+  else pendingOpen = path
+}
+
+/** Activate this view in the conversation tab ring by its stable button text. */
+function activateSelf(): void {
+  const tabs = document.querySelectorAll('[role=tablist] [role=tab]')
+  for (const tab of tabs) {
+    const text = tab.textContent ?? ''
+    if (text.includes('files') || text.includes('文件')) {
+      ;(tab as HTMLElement).click()
+      return
+    }
+  }
+}
+
 /**
  * The view component. The inject face (`props`) is recreated by the slot
  * renderer on its own schedule, so no effect depends on `props` identity:
@@ -213,6 +242,20 @@ export function FilesView(props: FilesViewProps) {
       setActiveId(next[next.length - 1]?.id)
     }
   }, [])
+
+  // Surfaced as the interception target; consume anything held while hidden.
+  useEffect(() => {
+    openSignal = (path: string): void => {
+      activateSelf()
+      void openFile(path)
+    }
+    if (pendingOpen !== undefined) {
+      const path = pendingOpen
+      pendingOpen = undefined
+      openSignal(path)
+    }
+    return () => { openSignal = undefined }
+  }, [openFile])
 
   /** Close one tab; activating falls to the right neighbor, else the left. */
   const closeTab = useCallback((id: string): void => {
@@ -322,7 +365,7 @@ export function FilesView(props: FilesViewProps) {
   const rootEmpty = rootListing?.state === 'done' && (filtering ? rootFiltered.length === 0 : rootListing.entries.length === 0)
 
   return (
-    <div style={{ display: 'flex', width: '100%', flex: '1 1 0', minHeight: 0, overflow: 'hidden', color: 'var(--dsw-alias-label-primary, inherit)' }}>
+    <div data-web-files="" style={{ display: 'flex', width: '100%', flex: '1 1 0', minHeight: 0, overflow: 'hidden', color: 'var(--dsw-alias-label-primary, inherit)' }}>
       <nav
         aria-label={t('view.files')}
         style={{ width: '280px', minWidth: '200px', flexShrink: 0, overflow: 'auto', borderRight: '1px solid var(--dsw-alias-border-l2, #ccc)', display: 'flex', flexDirection: 'column' }}
