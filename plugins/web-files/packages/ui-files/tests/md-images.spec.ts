@@ -57,6 +57,24 @@ describe('rewriteMarkdownImages', () => {
     expect(rewriteMarkdownImages(src, 's1', 'd')).toBe(src)
   })
 
+  it('leaves image syntax inside inline code spans untouched', () => {
+    const src = 'example \`![](img.png)\` stays literal'
+    expect(rewriteMarkdownImages(src, 's1', '')).toBe(src)
+  })
+
+  it('leaves image syntax inside fenced code blocks untouched', () => {
+    const src = '```md\n![x](a.png)\n``` and ![y](b.png) after'
+    const out = rewriteMarkdownImages(src, 's1', '')
+    expect(out).toContain('![x](a.png)')
+    expect(out).toContain('/plugins-web-files/preview?sessionId=s1&path=b.png')
+  })
+
+  it('still rewrites after a code span closes', () => {
+    const out = rewriteMarkdownImages('\`code\` then ![a](a.png)', 's1', '')
+    expect(out).toContain('/plugins-web-files/preview?sessionId=s1&path=a.png')
+    expect(out).toContain('`code`')
+  })
+
   it('skips an unclosed image construct', () => {
     const src = '![x](a.png'
     expect(rewriteMarkdownImages(src, 's1', '')).toBe(src)

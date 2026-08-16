@@ -26,32 +26,50 @@ interface ImageRef {
 }
 
 /**
- * Scan markdown source for inline image destinations. Handles balanced parens
- * inside the destination and escaped parens; returns refs in source order.
- * Code spans/fences are not excluded — a fence line like `![x](a.png)` inside
- * a code block would also be rewritten, but such text is rare and the rewrite
- * is harmless there (the rendered code block shows the rewritten URL only if
- * it wraps, which the renderer already avoids).
+ * Scan markdown source for inline image destinations, skipping code spans
+ * (`…`) and fenced code blocks (```…```) — example syntax inside code is
+ * literal text and must not be rewritten. Handles balanced parens inside the
+ * destination and escaped parens; returns refs in source order.
  */
 function scanInlineImages(source: string): ImageRef[] {
   const refs: ImageRef[] = []
-  for (let i = 0; i < source.length - 1; i++) {
-    if (source[i] !== '!' || source[i + 1] !== '[') continue
+  // Code span backtick fence: a run of N backticks opens a code span closed
+  // only by another run of exactly N (CommonMark). Track runs cheaply.
+  let i = 0
+  while (i < source.length - 1) {
+    const ch = source[i]
+    // Fenced code block: ``` or ~~~ toggles until the closing fence.
+    if ((ch === '`' || ch === '~') && source[i + 1] === ch && source[i + 2] === ch) {
+      const fence = ch.repeat(3)
+      const close = source.indexOf(fence, i + 3)
+      i = close === -1 ? source.length : close + 3
+      continue
+    }
+    // Inline code span: backtick run, closed by an equal-length run.
+    if (ch === '`') {
+      let run = 1
+      while (source[i + run] === '`') run++
+      const closer = '`'.repeat(run)
+      const close = source.indexOf(closer, i + run)
+      i = close === -1 ? source.length : close + run
+      continue
+    }
+    if (ch !== '!' || source[i + 1] !== '[') { i++; continue }
     // Find the matching ] — no nesting inside alt text per CommonMark.
     const close = source.indexOf(']', i + 2)
-    if (close === -1 || close + 1 >= source.length || source[close + 1] !== '(') continue
+    if (close === -1 || close + 1 >= source.length || source[close + 1] !== '(') { i++; continue }
     // Balanced-paren scan for the destination.
     let depth = 1
     let j = close + 2
     while (j < source.length && depth > 0) {
-      const ch = source[j]
-      if (ch === '\\') { j += 2; continue }
-      if (ch === '(') depth++
-      else if (ch === ')') depth--
+      const c = source[j]
+      if (c === '\\') { j += 2; continue }
+      if (c === '(') depth++
+      else if (c === ')') depth--
       if (depth === 0) break
       j++
     }
-    if (depth !== 0) continue
+    if (depth !== 0) { i = close; continue }
     refs.push({ start: close + 1, end: j + 1, destination: source.slice(close + 2, j) })
     i = j
   }

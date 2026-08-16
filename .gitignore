@@ -10,3 +10,4 @@ node_modules/
 !**/lib/typert.remote-client.d.ts
 !**/lib/typert.remote-client.d.ts.map
 **/lib/types/
+.evocode/
