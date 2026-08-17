@@ -4,30 +4,23 @@
  * reads the armed state for the current session from the Host's
  * `sessionNotify` Remote service, toggles it on click, and its popover is a
  * small sound-settings panel (system sounds, a custom file path, volume, and
- * a preview) bound to the `session-notify` settings namespace — hot-reloaded
- * from `$DSH_HOME/settings.yaml`, shared with the Settings page.
+ * a preview).
+ *
+ * Preferences are read/written through the Host's `getPrefs`/`setPrefs`
+ * Remotes rather than the browser settings transport, because dsh settings
+ * RPCs only accept loopback clients — the bell must keep working when the GUI
+ * is opened from a LAN IP (the Host writes into the same `session-notify`
+ * settings namespace, so the Settings page and settings.yaml stay in sync).
  */
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
+import type { NotifyPrefs } from '@gaowen/dsh-session-notify/types'
 import { NS } from './locales.ts'
 import { notifyRpc } from './rpc.ts'
 
 /** Full props for the composer completion bell. */
-export type BellActionProps = PropsRuntime<'conversation.input.left'> & PropsLocale<typeof NS> & BellInjected
-
-/** The settings section this bell binds (mirror of the Host namespace). */
-export interface BellSettings {
-  sound: string
-  volume?: number
-  mode?: 'one-shot' | 'sticky'
-}
-
-/** Host-facing services injected by the plugin registration. */
-export interface BellInjected {
-  /** The `session-notify` settings scope (read/subscribe/write). */
-  settings: SettingsScope<BellSettings>
-  /** The sessionNotify Remote caller (arm state, preview, sound list). */
+export type BellActionProps = PropsRuntime<'conversation.input.left'> & PropsLocale<typeof NS> & {
+  /** The sessionNotify Remote caller (arm state, preview, prefs, sound list). */
   call: ReturnType<typeof notifyRpc>
 }
 
@@ -151,27 +144,19 @@ const dotStyle: React.CSSProperties = {
 
 /**
  * The completion bell for one session, sitting beside the access-mode chrome:
- * click to arm/disarm; the caret opens the sound-settings panel bound to the
- * shared `session-notify` settings namespace.
- * @param props - framework slot currency, the namespace translator, and the injected faces.
+ * click to arm/disarm; the caret opens the sound-settings panel backed by the
+ * Host's prefs Remotes (LAN-safe, unlike the browser settings transport).
+ * @param props - framework slot currency, the namespace translator, and the injected Remote face.
  */
-export function BellAction({ sessionId, useSession, t, settings, call }: BellActionProps) {
+export function BellAction({ sessionId, useSession, t, call }: BellActionProps) {
   const [armed, setArmed] = useState<ArmedState>(null)
   const [open, setOpen] = useState(false)
   const [names, setNames] = useState<string[]>([])
+  const [prefs, setPrefs] = useState<NotifyPrefs | null>(null)
   const [customPath, setCustomPath] = useState('')
   const [volDraft, setVolDraft] = useState<number | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const running = useSession((snapshot) => snapshot.running)
-
-  // Reactive settings section (stable snapshot reference until a change).
-  // The scope methods rely on `this`, so wrap them in arrows before handing
-  // them to React — a bare reference would lose the binding and crash.
-  const settingsSnapshot = useSyncExternalStore(
-    (listener) => settings.subscribe(listener),
-    () => settings.getSnapshot(),
-  )
-  const value = settingsSnapshot.value
 
   // Fetch armed state when the current session changes.
   useEffect(() => {
@@ -209,6 +194,18 @@ export function BellAction({ sessionId, useSession, t, settings, call }: BellAct
     }
   }, [sessionId, call])
 
+  // Playback prefs: refresh on mount/session change and every time the panel
+  // opens (the Host value can move via the Settings page or settings.yaml).
+  useEffect(() => {
+    let cancelled = false
+    void call.getPrefs(sessionId).then((outcome) => {
+      if (!cancelled && outcome.ok) setPrefs(outcome.value)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [sessionId, call, open])
+
   // Close the popover on outside clicks.
   useEffect(() => {
     if (!open) return
@@ -220,6 +217,13 @@ export function BellAction({ sessionId, useSession, t, settings, call }: BellAct
       document.removeEventListener('pointerdown', closeOutside)
     }
   }, [open])
+
+  /** Write one prefs patch and adopt the echoed value. */
+  const writePrefs = (patch: Parameters<ReturnType<typeof notifyRpc>['setPrefs']>[1]): void => {
+    void call.setPrefs(sessionId, patch).then((outcome) => {
+      if (outcome.ok) setPrefs(outcome.value)
+    })
+  }
 
   const toggle = async (): Promise<void> => {
     const next = !(armed ?? false)
@@ -235,9 +239,9 @@ export function BellAction({ sessionId, useSession, t, settings, call }: BellAct
   const isArmed = armed === true
   const isRunning = running && isArmed
   const label = isArmed ? (isRunning ? t('state.armedRunning') : t('action.disarm')) : t('action.arm')
-  const currentSound = value?.sound ?? ''
+  const currentSound = prefs?.sound ?? ''
   const isCustom = currentSound !== '' && !names.includes(currentSound)
-  const volume = volDraft ?? ((value?.volume ?? 1) * 100)
+  const volume = volDraft ?? ((prefs?.volume ?? 1) * 100)
 
   return (
     <div ref={rootRef} style={groupStyle}>
@@ -278,7 +282,7 @@ export function BellAction({ sessionId, useSession, t, settings, call }: BellAct
                   setCustomPath(isCustom ? currentSound : '')
                   return
                 }
-                void settings.set('sound', picked)
+                writePrefs({ sound: picked })
               }}
               aria-label={t('sound.label')}
             >
@@ -300,13 +304,13 @@ export function BellAction({ sessionId, useSession, t, settings, call }: BellAct
                 onChange={(event) => setCustomPath(event.target.value)}
                 onBlur={(event) => {
                   const path = event.target.value.trim()
-                  if (path !== '') void settings.set('sound', path)
+                  if (path !== '') writePrefs({ sound: path })
                   setCustomPath('')
                 }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     const path = (event.target as HTMLInputElement).value.trim()
-                    if (path !== '') void settings.set('sound', path)
+                    if (path !== '') writePrefs({ sound: path })
                     setCustomPath('')
                   }
                 }}
@@ -324,11 +328,11 @@ export function BellAction({ sessionId, useSession, t, settings, call }: BellAct
               aria-label={t('volume.label')}
               onChange={(event) => setVolDraft(Number(event.target.value))}
               onPointerUp={() => {
-                if (volDraft !== null) void settings.set('volume', volDraft / 100)
+                if (volDraft !== null) writePrefs({ volume: volDraft / 100 })
                 setVolDraft(null)
               }}
               onKeyUp={() => {
-                if (volDraft !== null) void settings.set('volume', volDraft / 100)
+                if (volDraft !== null) writePrefs({ volume: volDraft / 100 })
                 setVolDraft(null)
               }}
             />

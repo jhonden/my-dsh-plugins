@@ -72,8 +72,10 @@ The sound, volume, and mode are user settings written to the `session-notify`
 section of `$DSH_HOME/settings.yaml`, **hot-reloaded** (saving the file
 applies immediately). Two equivalent ways to edit them:
 
-- the bell's caret → "Sound settings" panel in the composer tool row;
-- the auto-rendered `session-notify` form on the Settings page.
+- the bell's caret → "Sound settings" panel in the composer tool row (read/write
+  through Host Remotes, so it works from a LAN IP too — dsh's browser settings
+  transport only accepts loopback clients);
+- the auto-rendered `session-notify` form on the Settings page (loopback access).
 
 ```yaml
 # $DSH_HOME/settings.yaml

@@ -5,7 +5,7 @@
  * keeps this distribution free of generated Remote contributions while still
  * using the Gateway-claimed, schema-validated endpoint.
  */
-import type { NotifyPreviewResult, NotifySetArmedResult, NotifySoundListResult, NotifyState } from '@gaowen/dsh-session-notify/types'
+import type { NotifyMode, NotifyPrefs, NotifyPreviewResult, NotifySetArmedResult, NotifySetPrefsRequest, NotifySoundListResult, NotifyState } from '@gaowen/dsh-session-notify/types'
 
 /** One RPC carrier outcome: a value, or a typed error identity. */
 export type RpcOutcome<T> = { ok: true; value: T } | { ok: false; error: { code: string; message: string } }
@@ -24,6 +24,8 @@ export function notifyRpc(): {
   setArmed: (sessionId: string, armed: boolean, signal?: AbortSignal) => Promise<RpcOutcome<NotifySetArmedResult>>
   preview: (sessionId: string, signal?: AbortSignal) => Promise<RpcOutcome<NotifyPreviewResult>>
   listSounds: (sessionId: string, signal?: AbortSignal) => Promise<RpcOutcome<NotifySoundListResult>>
+  getPrefs: (sessionId: string, signal?: AbortSignal) => Promise<RpcOutcome<NotifyPrefs>>
+  setPrefs: (sessionId: string, patch: NotifySetPrefsRequest, signal?: AbortSignal) => Promise<RpcOutcome<NotifyPrefs>>
 } {
   async function call<T>(method: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<RpcOutcome<T>> {
     const rpcId = randomRpcId()
@@ -56,5 +58,7 @@ export function notifyRpc(): {
     setArmed: (sessionId, armed, signal) => call<NotifySetArmedResult>('setArmed', { sessionId, request: { armed } }, signal),
     preview: (sessionId, signal) => call<NotifyPreviewResult>('preview', { sessionId, request: {} }, signal),
     listSounds: (sessionId, signal) => call<NotifySoundListResult>('listSounds', { sessionId, request: {} }, signal),
+    getPrefs: (sessionId, signal) => call<NotifyPrefs>('getPrefs', { sessionId, request: {} }, signal),
+    setPrefs: (sessionId, patch, signal) => call<NotifyPrefs>('setPrefs', { sessionId, request: patch }, signal),
   }
 }

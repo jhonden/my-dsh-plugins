@@ -51,14 +51,19 @@ class FakeSettingsProvider extends SettingsProvider {
     return this.doc
   }
 
-  protected async persist(_ns: SettingsNamespace, _section: Record<string, unknown>): Promise<void> {
-    // in-memory; push() is the test seam
+  protected async persist(ns: SettingsNamespace, section: Record<string, unknown>): Promise<void> {
+    this.doc[ns] = section
   }
 
   /** Test seam: publish a whole raw document as the file provider would on reload. */
   push(doc: Record<string, unknown>): void {
     this.doc = doc
     this.publish(doc)
+  }
+
+  /** Test seam: the current raw document. */
+  document(): Record<string, unknown> {
+    return this.doc
   }
 }
 
@@ -388,6 +393,56 @@ describe('SessionNotifyService settings wiring', () => {
       await tick()
       expect(service.currentSound()).toBe('Sosumi')
       expect(service.currentMode()).toBe('sticky')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('setPrefs writes through the host settings service (LAN-safe path)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'session-notify-'))
+    try {
+      const ctx = new Context()
+      await ctx.plugin(FakeSettingsProvider)
+      const service = new CountingService(ctx, { stateFile: join(dir, 'armed.json'), sound: 'Pop' })
+      await tick()
+      expect(service.currentSound()).toBe('Pop')
+      const echoed = await service.setPrefs(session('session-1'), { sound: 'Sosumi', volume: 0.5 })
+      await tick()
+      expect(echoed.sound).toBe('Sosumi')
+      expect(echoed.volume).toBe(0.5)
+      expect(service.currentSound()).toBe('Sosumi')
+      // The write landed in the registered settings namespace (resolved view).
+      const resolved = ctx.settings.get('session-notify') as { sound: string; volume?: number }
+      expect(resolved.sound).toBe('Sosumi')
+      expect(resolved.volume).toBe(0.5)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('setPrefs falls back to in-memory application without a settings service', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'session-notify-'))
+    try {
+      const ctx = new Context()
+      const service = new CountingService(ctx, { stateFile: join(dir, 'armed.json'), sound: 'Pop' })
+      await tick()
+      const echoed = await service.setPrefs(session('session-1'), { sound: 'Sosumi', mode: 'sticky' })
+      expect(echoed.sound).toBe('Sosumi')
+      expect(service.currentSound()).toBe('Sosumi')
+      expect(service.currentMode()).toBe('sticky')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('getPrefs returns the current playback prefs', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'session-notify-'))
+    try {
+      const ctx = new Context()
+      const service = new CountingService(ctx, { stateFile: join(dir, 'armed.json'), sound: 'Pop', volume: 0.7 })
+      await tick()
+      const prefs = await service.getPrefs(session('session-1'), {})
+      expect(prefs).toEqual({ sound: 'Pop', mode: 'one-shot', volume: 0.7 })
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

@@ -4,7 +4,7 @@ import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import { z } from 'zod';
 import { SoundPlayer } from './sound.ts';
 import { type SessionNotifySettings } from './settings.ts';
-import type { NotifyGetStateRequest, NotifyMode, NotifyPreviewResult, NotifySetArmedRequest, NotifySetArmedResult, NotifySoundListResult, NotifyState } from './types.ts';
+import type { NotifyGetStateRequest, NotifyMode, NotifyPrefs, NotifyPreviewResult, NotifySetArmedRequest, NotifySetArmedResult, NotifySetPrefsRequest, NotifySoundListResult, NotifyState } from './types.ts';
 export type * from './types.ts';
 declare module '@deepseek-ai/cordis' {
     interface Context {
@@ -39,6 +39,12 @@ export declare class SessionNotifyService extends TypertRemoteService {
     private readonly stateFile;
     /** The authoritative playback config: the settings section while one is attached, the entry otherwise. */
     protected settingsSource: () => SessionNotifySettings;
+    /**
+     * Host-side settings handle for in-process writes. The browser settings
+     * transport only accepts loopback clients, so the bell panel (reachable from
+     * LAN IPs too) writes through this instead.
+     */
+    private settingsApi;
     protected mode: NotifyMode;
     protected sound: string;
     protected volume: number | undefined;
@@ -54,6 +60,19 @@ export declare class SessionNotifyService extends TypertRemoteService {
     preview(_session: Session, _request: NotifyGetStateRequest): Promise<NotifyPreviewResult>;
     /** Named sounds the host can play directly (macOS system sounds; empty elsewhere). */
     listSounds(_session: Session, _request: NotifyGetStateRequest): Promise<NotifySoundListResult>;
+    /** The playback preferences currently in effect (settings-resolved). */
+    getPrefs(_session: Session, _request: NotifyGetStateRequest): Promise<NotifyPrefs>;
+    /**
+     * Write playback preferences through the host-side settings service (in
+     * process — the browser settings transport is loopback-only, so LAN clients
+     * must go through here). Every present field is written; others are left
+     * alone. The settings watch then refreshes the live playback config.
+     */
+    setPrefs(_session: Session, request: NotifySetPrefsRequest): Promise<NotifyPrefs>;
+    /** The current playback prefs with absent optional fields omitted. */
+    private prefsSnapshot;
+    /** Direct in-memory application when the settings service is absent. */
+    private applySettingsPatch;
     /** The status listener: a run completing while armed plays the sound. */
     private onAgentStatus;
     /** A disposed session must never notify; drop its state. */

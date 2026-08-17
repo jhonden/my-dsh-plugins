@@ -10,8 +10,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the ui-conversation SlotMap merge (the composer tool row).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import { BellAction, type BellSettings } from './BellAction.tsx'
+import { BellAction } from './BellAction.tsx'
 import { NS, en, zh } from './locales.ts'
 import { notifyRpc } from './rpc.ts'
 
@@ -27,8 +26,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Locale namespace owning the bell's copy. */
 const NS_NAME = NS
 
-/** Required services: the slot registry, locale, and the settings-namespace transport. */
-export const inject = ['slots', 'locale', 'settingsScope', 'connection', 'remote']
+/** Required services: the slot registry and locale. */
+export const inject = ['slots', 'locale']
 
 /**
  * Client plugin body: register the dictionaries and the composer bell.
@@ -45,8 +44,6 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'ui-notify: dictionaries')
 
-  // Bind the shared `session-notify` settings namespace (host + Settings page).
-  const settings = ctx.settingsScope.bind<BellSettings>({ namespace: 'session-notify' })
   const call = notifyRpc()
 
   ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
@@ -54,6 +51,6 @@ export function apply(ctx: ClientContext): void {
     id: 'session-notify',
     order: 10,
     locale: NS_NAME,
-    inject: () => ({ settings, call }),
+    inject: () => ({ call }),
   }, BellAction))
 }

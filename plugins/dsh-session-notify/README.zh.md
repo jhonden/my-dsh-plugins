@@ -67,8 +67,9 @@ dsh plugin --profile web add link:$(pwd)/plugins/dsh-session-notify/bundle/sessi
 `session-notify` 段，**热生效**（文件保存即应用，无需重启）。可通过两种方式修改，
 效果相同：
 
-- 输入框铃铛旁的小箭头 →「提示音设置」面板；
-- 侧栏 Settings 页自动渲染的 `session-notify` 表单。
+- 输入框铃铛旁的小箭头 →「提示音设置」面板（经 host Remote 读写，**本机 IP /
+  局域网访问同样可用**——dsh 的浏览器 settings 传输仅限回环地址）；
+- 侧栏 Settings 页自动渲染的 `session-notify` 表单（需回环地址访问）。
 
 ```yaml
 # $DSH_HOME/settings.yaml

@@ -29,6 +29,21 @@ export interface NotifySoundListResult {
     /** Named sounds the host can play directly (platform-dependent; empty off macOS). */
     names: string[];
 }
+/** The playback preferences the bell panel reads and writes. */
+export interface NotifyPrefs {
+    /** Named system sound (macOS) or an absolute audio file path. */
+    sound: string;
+    /** Playback volume 0..1; macOS afplay only (absent = platform default). */
+    volume?: number;
+    /** `one-shot` plays once then auto-disarms; `sticky` keeps notifying. */
+    mode: NotifyMode;
+}
+/** setPrefs request — every present field is written, others are left alone. */
+export interface NotifySetPrefsRequest {
+    sound?: string;
+    volume?: number;
+    mode?: NotifyMode;
+}
 /**
  * Notification mode. 'one-shot' plays once and auto-disarms at the first run
  * completion after arming; 'sticky' keeps the session armed so every

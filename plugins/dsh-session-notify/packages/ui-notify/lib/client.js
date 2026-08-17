@@ -115,6 +115,14 @@ window.__ModuleLoader__.load({
 				listSounds: (sessionId, signal) => call("listSounds", {
 					sessionId,
 					request: {}
+				}, signal),
+				getPrefs: (sessionId, signal) => call("getPrefs", {
+					sessionId,
+					request: {}
+				}, signal),
+				setPrefs: (sessionId, patch, signal) => call("setPrefs", {
+					sessionId,
+					request: patch
 				}, signal)
 			};
 		}
@@ -126,8 +134,13 @@ window.__ModuleLoader__.load({
 		* reads the armed state for the current session from the Host's
 		* `sessionNotify` Remote service, toggles it on click, and its popover is a
 		* small sound-settings panel (system sounds, a custom file path, volume, and
-		* a preview) bound to the `session-notify` settings namespace — hot-reloaded
-		* from `$DSH_HOME/settings.yaml`, shared with the Settings page.
+		* a preview).
+		*
+		* Preferences are read/written through the Host's `getPrefs`/`setPrefs`
+		* Remotes rather than the browser settings transport, because dsh settings
+		* RPCs only accept loopback clients — the bell must keep working when the GUI
+		* is opened from a LAN IP (the Host writes into the same `session-notify`
+		* settings namespace, so the Settings page and settings.yaml stay in sync).
 		*/
 		/** select value for the custom-file option. */
 		const CUSTOM_KEY = "__custom__";
@@ -253,19 +266,19 @@ window.__ModuleLoader__.load({
 		};
 		/**
 		* The completion bell for one session, sitting beside the access-mode chrome:
-		* click to arm/disarm; the caret opens the sound-settings panel bound to the
-		* shared `session-notify` settings namespace.
-		* @param props - framework slot currency, the namespace translator, and the injected faces.
+		* click to arm/disarm; the caret opens the sound-settings panel backed by the
+		* Host's prefs Remotes (LAN-safe, unlike the browser settings transport).
+		* @param props - framework slot currency, the namespace translator, and the injected Remote face.
 		*/
-		function BellAction({ sessionId, useSession, t, settings, call }) {
+		function BellAction({ sessionId, useSession, t, call }) {
 			const [armed, setArmed] = (0, react.useState)(null);
 			const [open, setOpen] = (0, react.useState)(false);
 			const [names, setNames] = (0, react.useState)([]);
+			const [prefs, setPrefs] = (0, react.useState)(null);
 			const [customPath, setCustomPath] = (0, react.useState)("");
 			const [volDraft, setVolDraft] = (0, react.useState)(null);
 			const rootRef = (0, react.useRef)(null);
 			const running = useSession((snapshot) => snapshot.running);
-			const value = (0, react.useSyncExternalStore)((listener) => settings.subscribe(listener), () => settings.getSnapshot()).value;
 			(0, react.useEffect)(() => {
 				let cancelled = false;
 				setArmed(null);
@@ -299,6 +312,19 @@ window.__ModuleLoader__.load({
 				};
 			}, [sessionId, call]);
 			(0, react.useEffect)(() => {
+				let cancelled = false;
+				call.getPrefs(sessionId).then((outcome) => {
+					if (!cancelled && outcome.ok) setPrefs(outcome.value);
+				});
+				return () => {
+					cancelled = true;
+				};
+			}, [
+				sessionId,
+				call,
+				open
+			]);
+			(0, react.useEffect)(() => {
 				if (!open) return;
 				const closeOutside = (event) => {
 					if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpen(false);
@@ -308,6 +334,12 @@ window.__ModuleLoader__.load({
 					document.removeEventListener("pointerdown", closeOutside);
 				};
 			}, [open]);
+			/** Write one prefs patch and adopt the echoed value. */
+			const writePrefs = (patch) => {
+				call.setPrefs(sessionId, patch).then((outcome) => {
+					if (outcome.ok) setPrefs(outcome.value);
+				});
+			};
 			const toggle = async () => {
 				const next = !(armed ?? false);
 				setArmed(next);
@@ -320,9 +352,9 @@ window.__ModuleLoader__.load({
 			const isArmed = armed === true;
 			const isRunning = running && isArmed;
 			const label = isArmed ? isRunning ? t("state.armedRunning") : t("action.disarm") : t("action.arm");
-			const currentSound = value?.sound ?? "";
+			const currentSound = prefs?.sound ?? "";
 			const isCustom = currentSound !== "" && !names.includes(currentSound);
-			const volume = volDraft ?? (value?.volume ?? 1) * 100;
+			const volume = volDraft ?? (prefs?.volume ?? 1) * 100;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				ref: rootRef,
 				style: groupStyle,
@@ -371,7 +403,7 @@ window.__ModuleLoader__.load({
 											setCustomPath(isCustom ? currentSound : "");
 											return;
 										}
-										settings.set("sound", picked);
+										writePrefs({ sound: picked });
 									},
 									"aria-label": t("sound.label"),
 									children: [
@@ -401,13 +433,13 @@ window.__ModuleLoader__.load({
 									onChange: (event) => setCustomPath(event.target.value),
 									onBlur: (event) => {
 										const path = event.target.value.trim();
-										if (path !== "") settings.set("sound", path);
+										if (path !== "") writePrefs({ sound: path });
 										setCustomPath("");
 									},
 									onKeyDown: (event) => {
 										if (event.key === "Enter") {
 											const path = event.target.value.trim();
-											if (path !== "") settings.set("sound", path);
+											if (path !== "") writePrefs({ sound: path });
 											setCustomPath("");
 										}
 									}
@@ -426,11 +458,11 @@ window.__ModuleLoader__.load({
 										"aria-label": t("volume.label"),
 										onChange: (event) => setVolDraft(Number(event.target.value)),
 										onPointerUp: () => {
-											if (volDraft !== null) settings.set("volume", volDraft / 100);
+											if (volDraft !== null) writePrefs({ volume: volDraft / 100 });
 											setVolDraft(null);
 										},
 										onKeyUp: () => {
-											if (volDraft !== null) settings.set("volume", volDraft / 100);
+											if (volDraft !== null) writePrefs({ volume: volDraft / 100 });
 											setVolDraft(null);
 										}
 									}),
@@ -464,14 +496,8 @@ window.__ModuleLoader__.load({
 		//#region src/client/index.ts
 		/** Locale namespace owning the bell's copy. */
 		const NS_NAME = NS;
-		/** Required services: the slot registry, locale, and the settings-namespace transport. */
-		const inject = [
-			"slots",
-			"locale",
-			"settingsScope",
-			"connection",
-			"remote"
-		];
+		/** Required services: the slot registry and locale. */
+		const inject = ["slots", "locale"];
 		/**
 		* Client plugin body: register the dictionaries and the composer bell.
 		* @param ctx - client root context.
@@ -483,17 +509,13 @@ window.__ModuleLoader__.load({
 					for (const dispose of disposers) dispose();
 				};
 			}, "ui-notify: dictionaries");
-			const settings = ctx.settingsScope.bind({ namespace: "session-notify" });
 			const call = notifyRpc();
 			ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
 				name: "conversation.input.left",
 				id: "session-notify",
 				order: 10,
 				locale: NS_NAME,
-				inject: () => ({
-					settings,
-					call
-				})
+				inject: () => ({ call })
 			}, BellAction));
 		}
 		//#endregion

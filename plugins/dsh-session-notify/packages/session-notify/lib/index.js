@@ -75,6 +75,8 @@ let SessionNotifyService = (() => {
     let _setArmed_decorators;
     let _preview_decorators;
     let _listSounds_decorators;
+    let _getPrefs_decorators;
+    let _setPrefs_decorators;
     return class SessionNotifyService extends _classSuper {
         static {
             const _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(_classSuper[Symbol.metadata] ?? null) : void 0;
@@ -82,10 +84,14 @@ let SessionNotifyService = (() => {
             _setArmed_decorators = [Remote('setArmed')];
             _preview_decorators = [Remote('preview')];
             _listSounds_decorators = [Remote('listSounds')];
+            _getPrefs_decorators = [Remote('getPrefs')];
+            _setPrefs_decorators = [Remote('setPrefs')];
             __esDecorate(this, null, _getState_decorators, { kind: "method", name: "getState", static: false, private: false, access: { has: obj => "getState" in obj, get: obj => obj.getState }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _setArmed_decorators, { kind: "method", name: "setArmed", static: false, private: false, access: { has: obj => "setArmed" in obj, get: obj => obj.setArmed }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _preview_decorators, { kind: "method", name: "preview", static: false, private: false, access: { has: obj => "preview" in obj, get: obj => obj.preview }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _listSounds_decorators, { kind: "method", name: "listSounds", static: false, private: false, access: { has: obj => "listSounds" in obj, get: obj => obj.listSounds }, metadata: _metadata }, null, _instanceExtraInitializers);
+            __esDecorate(this, null, _getPrefs_decorators, { kind: "method", name: "getPrefs", static: false, private: false, access: { has: obj => "getPrefs" in obj, get: obj => obj.getPrefs }, metadata: _metadata }, null, _instanceExtraInitializers);
+            __esDecorate(this, null, _setPrefs_decorators, { kind: "method", name: "setPrefs", static: false, private: false, access: { has: obj => "setPrefs" in obj, get: obj => obj.setPrefs }, metadata: _metadata }, null, _instanceExtraInitializers);
             if (_metadata) Object.defineProperty(this, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
         }
         /** Schema for the cordis.yml row; the same object serves constructor config. */
@@ -108,6 +114,12 @@ let SessionNotifyService = (() => {
         stateFile;
         /** The authoritative playback config: the settings section while one is attached, the entry otherwise. */
         settingsSource;
+        /**
+         * Host-side settings handle for in-process writes. The browser settings
+         * transport only accepts loopback clients, so the bell panel (reachable from
+         * LAN IPs too) writes through this instead.
+         */
+        settingsApi = undefined;
         mode;
         sound;
         volume;
@@ -142,6 +154,9 @@ let SessionNotifyService = (() => {
                     this.mode = value.mode;
                 },
             });
+            ctx.inject(['settings'], (sctx) => {
+                this.settingsApi = sctx.settings;
+            });
             ctx.on('agent/status', ({ agent, status }) => this.onAgentStatus(agent.id, status));
             ctx.on('session/disposed', (session) => this.onSessionDisposed(session.id));
             ctx.on('agent/pre-step', (payload, next) => this.onPreStep(payload, next));
@@ -169,6 +184,53 @@ let SessionNotifyService = (() => {
         /** Named sounds the host can play directly (macOS system sounds; empty elsewhere). */
         async listSounds(_session, _request) {
             return { names: process.platform === 'darwin' ? [...MACOS_SOUND_NAMES] : [] };
+        }
+        /** The playback preferences currently in effect (settings-resolved). */
+        async getPrefs(_session, _request) {
+            await this.ready;
+            return this.prefsSnapshot();
+        }
+        /**
+         * Write playback preferences through the host-side settings service (in
+         * process — the browser settings transport is loopback-only, so LAN clients
+         * must go through here). Every present field is written; others are left
+         * alone. The settings watch then refreshes the live playback config.
+         */
+        async setPrefs(_session, request) {
+            const ops = [];
+            if (request.sound !== undefined)
+                ops.push({ op: 'set', path: ['sound'], value: request.sound });
+            if (request.volume !== undefined)
+                ops.push({ op: 'set', path: ['volume'], value: request.volume });
+            if (request.mode !== undefined)
+                ops.push({ op: 'set', path: ['mode'], value: request.mode });
+            if (ops.length > 0) {
+                if (this.settingsApi !== undefined) {
+                    await this.settingsApi.mutate(SESSION_NOTIFY_SETTINGS_NAMESPACE, ops);
+                }
+                else {
+                    // No settings service (headless/no-settings assembly): apply in memory.
+                    this.applySettingsPatch(request);
+                }
+            }
+            return this.prefsSnapshot();
+        }
+        /** The current playback prefs with absent optional fields omitted. */
+        prefsSnapshot() {
+            return {
+                sound: this.sound,
+                mode: this.mode,
+                ...(this.volume === undefined ? {} : { volume: this.volume }),
+            };
+        }
+        /** Direct in-memory application when the settings service is absent. */
+        applySettingsPatch(request) {
+            if (request.sound !== undefined)
+                this.sound = request.sound;
+            if (request.volume !== undefined)
+                this.volume = request.volume;
+            if (request.mode !== undefined)
+                this.mode = request.mode;
         }
         /** The status listener: a run completing while armed plays the sound. */
         onAgentStatus(id, status) {

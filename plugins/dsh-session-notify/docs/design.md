@@ -52,9 +52,12 @@
   `$DSH_HOME/settings.yaml`，**热生效**（保存即应用，无需重启）。
 - 服务持有 `settingsSource` thunk（settings 挂载时指向 scope，否则回退
   entry），`onChange` 刷新 `sound/volume/mode`——播放与完成检测始终读当前值。
-- 铃铛面板（client）通过 `ctx.settingsScope.bind({ namespace: 'session-notify' })`
-  读/写同一份设置（`useSyncExternalStore` 响应订阅）；系统音效列表由新的
-  `sessionNotify/listSounds` Remote 提供（macOS 14 种内置音效名）。
+- 铃铛面板（client）经 `sessionNotify/getPrefs|setPrefs` Remote 读写同一份
+  设置——**不依赖浏览器 settings 传输**，因为 dsh 的 settings RPC 仅接受回环
+  客户端，局域网（LAN IP）访问时浏览器写会被静默丢弃（memory 模式）。Host 在
+  进程内调用 `ctx.settings.mutate` 写入，绕过该限制；无 settings 服务时回退
+  内存应用。系统音效列表由 `sessionNotify/listSounds` Remote 提供
+  （macOS 14 种内置音效名）。
 - 侧栏 Settings 页自动渲染该命名空间表单，两处共享同一配置。
 
 ## 播放器（host 进程）

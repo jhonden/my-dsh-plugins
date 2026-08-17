@@ -26,6 +26,7 @@ import type {} from '@deepseek-ai/dsh-agent'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { installSettingsSection } from '@deepseek-ai/dsh-settings'
+import type { SettingsPathOp, SettingsProvider } from '@deepseek-ai/dsh-settings'
 import type { Session, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
@@ -40,9 +41,11 @@ import {
 import type {
   NotifyGetStateRequest,
   NotifyMode,
+  NotifyPrefs,
   NotifyPreviewResult,
   NotifySetArmedRequest,
   NotifySetArmedResult,
+  NotifySetPrefsRequest,
   NotifySoundListResult,
   NotifyState,
 } from './types.ts'
@@ -89,6 +92,12 @@ export class SessionNotifyService extends TypertRemoteService {
   private readonly stateFile: string
   /** The authoritative playback config: the settings section while one is attached, the entry otherwise. */
   protected settingsSource: () => SessionNotifySettings
+  /**
+   * Host-side settings handle for in-process writes. The browser settings
+   * transport only accepts loopback clients, so the bell panel (reachable from
+   * LAN IPs too) writes through this instead.
+   */
+  private settingsApi: SettingsProvider | undefined = undefined
   protected mode: NotifyMode
   protected sound: string
   protected volume: number | undefined
@@ -130,6 +139,9 @@ export class SessionNotifyService extends TypertRemoteService {
         },
       },
     )
+    ctx.inject(['settings'], (sctx) => {
+      this.settingsApi = sctx.settings
+    })
     ctx.on('agent/status', ({ agent, status }) => this.onAgentStatus(agent.id, status))
     ctx.on('session/disposed', (session) => this.onSessionDisposed(session.id))
     ctx.on('agent/pre-step', (payload, next) => this.onPreStep(payload, next))
@@ -164,6 +176,52 @@ export class SessionNotifyService extends TypertRemoteService {
   @Remote('listSounds')
   async listSounds(_session: Session, _request: NotifyGetStateRequest): Promise<NotifySoundListResult> {
     return { names: process.platform === 'darwin' ? [...MACOS_SOUND_NAMES] : [] }
+  }
+
+  /** The playback preferences currently in effect (settings-resolved). */
+  @Remote('getPrefs')
+  async getPrefs(_session: Session, _request: NotifyGetStateRequest): Promise<NotifyPrefs> {
+    await this.ready
+    return this.prefsSnapshot()
+  }
+
+  /**
+   * Write playback preferences through the host-side settings service (in
+   * process — the browser settings transport is loopback-only, so LAN clients
+   * must go through here). Every present field is written; others are left
+   * alone. The settings watch then refreshes the live playback config.
+   */
+  @Remote('setPrefs')
+  async setPrefs(_session: Session, request: NotifySetPrefsRequest): Promise<NotifyPrefs> {
+    const ops: SettingsPathOp[] = []
+    if (request.sound !== undefined) ops.push({ op: 'set', path: ['sound'], value: request.sound })
+    if (request.volume !== undefined) ops.push({ op: 'set', path: ['volume'], value: request.volume })
+    if (request.mode !== undefined) ops.push({ op: 'set', path: ['mode'], value: request.mode })
+    if (ops.length > 0) {
+      if (this.settingsApi !== undefined) {
+        await this.settingsApi.mutate(SESSION_NOTIFY_SETTINGS_NAMESPACE, ops)
+      } else {
+        // No settings service (headless/no-settings assembly): apply in memory.
+        this.applySettingsPatch(request)
+      }
+    }
+    return this.prefsSnapshot()
+  }
+
+  /** The current playback prefs with absent optional fields omitted. */
+  private prefsSnapshot(): NotifyPrefs {
+    return {
+      sound: this.sound,
+      mode: this.mode,
+      ...(this.volume === undefined ? {} : { volume: this.volume }),
+    }
+  }
+
+  /** Direct in-memory application when the settings service is absent. */
+  private applySettingsPatch(request: NotifySetPrefsRequest): void {
+    if (request.sound !== undefined) this.sound = request.sound
+    if (request.volume !== undefined) this.volume = request.volume
+    if (request.mode !== undefined) this.mode = request.mode
   }
 
   /** The status listener: a run completing while armed plays the sound. */

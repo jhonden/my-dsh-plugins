@@ -32,6 +32,16 @@ const _previewResult$schema = z.object({
 const _soundListResult$schema = z.object({
   'names': z.array(z.string()),
 })
+const _prefs$schema = z.object({
+  'sound': z.string(),
+  'volume': z.number().optional(),
+  'mode': z.union([z.literal('one-shot'), z.literal('sticky')]),
+})
+const _setPrefsRequest$schema = z.object({
+  'sound': z.string().optional(),
+  'volume': z.number().optional(),
+  'mode': z.union([z.literal('one-shot'), z.literal('sticky')]).optional(),
+})
 
 const NOTIFY_DOC = 'Session notification service (\`ctx.sessionNotify\`): the Host half of the completion bell. Remote methods read/write the armed flag for the calling session; the event listeners drive the sound at run completion.'
 const NOTIFY_JSDOC = '/**\\n * Session notification service (\`ctx.sessionNotify\`): the Host half of the\\n * completion bell. Remote methods read/write the armed flag for the calling\\n * session; the event listeners drive the sound at run completion.\\n */'
@@ -186,6 +196,78 @@ export const TYPERT = {
       },
       sourceLocation: { 'file': 'plugins/dsh-session-notify/packages/session-notify/src/index.ts', 'line': 118, 'column': 9 },
     },
+    {
+      id: '@gaowen/dsh-session-notify#sessionNotify/getPrefs',
+      service: 'sessionNotify',
+      namespace: 'sessionNotify',
+      method: 'getPrefs',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'session',
+          wire: 'sessionId',
+          source: 'lookup',
+          lookup: 'session',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@deepseek-ai/dsh-session/types#SessionId',
+            schema: _sessionId$schema,
+          },
+        },
+        {
+          name: 'request',
+          wire: 'request',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@gaowen/dsh-session-notify/types#NotifyGetStateRequest',
+            schema: _getStateRequest$schema,
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@gaowen/dsh-session-notify/types#NotifyPrefs',
+        schema: _prefs$schema,
+      },
+      sourceLocation: { 'file': 'plugins/dsh-session-notify/packages/session-notify/src/index.ts', 'line': 128, 'column': 9 },
+    },
+    {
+      id: '@gaowen/dsh-session-notify#sessionNotify/setPrefs',
+      service: 'sessionNotify',
+      namespace: 'sessionNotify',
+      method: 'setPrefs',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'session',
+          wire: 'sessionId',
+          source: 'lookup',
+          lookup: 'session',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@deepseek-ai/dsh-session/types#SessionId',
+            schema: _sessionId$schema,
+          },
+        },
+        {
+          name: 'request',
+          wire: 'request',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@gaowen/dsh-session-notify/types#NotifySetPrefsRequest',
+            schema: _setPrefsRequest$schema,
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@gaowen/dsh-session-notify/types#NotifyPrefs',
+        schema: _prefs$schema,
+      },
+      sourceLocation: { 'file': 'plugins/dsh-session-notify/packages/session-notify/src/index.ts', 'line': 142, 'column': 9 },
+    },
   ],
   model: {
     'services': [
@@ -225,6 +307,20 @@ export const TYPERT = {
             'summary': 'Named sounds the host can play directly (macOS system sounds; empty elsewhere).',
             'jsDoc': '/** Named sounds the host can play directly (macOS system sounds; empty elsewhere). */',
           },
+          {
+            'kind': 'method',
+            'name': 'getPrefs',
+            'signature': "@Remote('getPrefs') async getPrefs(session: Session, request: NotifyGetStateRequest): Promise<NotifyPrefs>",
+            'summary': 'The playback preferences currently in effect (settings-resolved).',
+            'jsDoc': '/** The playback preferences currently in effect (settings-resolved). */',
+          },
+          {
+            'kind': 'method',
+            'name': 'setPrefs',
+            'signature': "@Remote('setPrefs') async setPrefs(session: Session, request: NotifySetPrefsRequest): Promise<NotifyPrefs>",
+            'summary': 'Write playback preferences through the host-side settings service (in process — the browser settings transport is loopback-only).',
+            'jsDoc': '/** Write playback preferences through the host-side settings service (in process — the browser settings transport is loopback-only). */',
+          },
         ],
         'types': [
           {
@@ -246,6 +342,14 @@ export const TYPERT = {
           {
             'name': 'NotifySetArmedResult',
             'declaration': ${decl('export interface NotifySetArmedResult {\n    armed: boolean;\n}')},
+          },
+          {
+            'name': 'NotifyPrefs',
+            'declaration': ${decl('export interface NotifyPrefs {\n    sound: string;\n    volume?: number;\n    mode: NotifyMode;\n}')},
+          },
+          {
+            'name': 'NotifySetPrefsRequest',
+            'declaration': ${decl('export interface NotifySetPrefsRequest {\n    sound?: string;\n    volume?: number;\n    mode?: NotifyMode;\n}')},
           },
           {
             'name': 'NotifySoundListResult',
