@@ -4,6 +4,9 @@
   "references": [
     { "path": "./plugins/web-files/packages/files-remote" },
     { "path": "./plugins/web-files/packages/ui-files" },
-    { "path": "./plugins/web-files/bundle/web-files" }
+    { "path": "./plugins/web-files/bundle/web-files" },
+    { "path": "./plugins/dsh-session-notify/packages/session-notify" },
+    { "path": "./plugins/dsh-session-notify/packages/ui-notify" },
+    { "path": "./plugins/dsh-session-notify/bundle/session-notify" }
   ]
 }

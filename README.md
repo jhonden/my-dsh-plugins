@@ -11,6 +11,7 @@ Each directory under `plugins/` is one **self-contained, independently installab
 | Plugin | What it adds |
 |---|---|
 | [`web-files`](plugins/web-files/) | A "Files" tab in the Web client's conversation view: a workspace file tree with a read-only viewer (markdown preview via the platform renderer) backed by a sandboxed Host Remote service |
+| [`session-notify`](plugins/dsh-session-notify/) | Per-session completion alerts in the Web client: arm a session with a bell in the composer tool row (or a `!notify` message prefix) and dsh plays a sound on your machine when its run finishes |
 
 ![web-files](plugins/web-files/docs/screenshots/overview.png)
 

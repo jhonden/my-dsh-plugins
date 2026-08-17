@@ -1,0 +1,29 @@
+{
+  "name": "@gaowen/dsh-bundle-session-notify",
+  "description": "dsh profile bundle: per-session completion notification (Host sessionNotify Remote service + Web client bell)",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "cordis.patch.yml",
+    "lib/index.d.ts",
+    "lib/index.js"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@gaowen/dsh-client-ui-notify": "github:jhonden/my-dsh-plugins#main&path:plugins/dsh-session-notify/packages/ui-notify",
+    "@gaowen/dsh-session-notify": "github:jhonden/my-dsh-plugins#main&path:plugins/dsh-session-notify/packages/session-notify"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

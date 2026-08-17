@@ -1,0 +1,9 @@
+# Session-notify bundle patch layer: the Host sessionNotify Remote service
+# and the client UI plugin. Installing this bundle into a web profile adds the
+# session-header completion bell (arm → sound at run completion → auto-disarm);
+# removing the insert removes both together.
+- insert:
+    - id: session-notify
+      name: '@gaowen/dsh-session-notify'
+    - id: ui-session-notify
+      name: '@gaowen/dsh-client-ui-notify'

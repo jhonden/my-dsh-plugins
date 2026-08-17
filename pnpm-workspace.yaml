@@ -2,4 +2,11 @@ packages:
   - plugins/*/packages/*
   - plugins/*/bundle/*
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
+# Local-dev only: the bundle declares its two implementation packages via
+# github: refs (the GitHub-install pattern), which cannot resolve before the
+# plugin is pushed to main. Overriding them to the workspace lets this repo
+# build and test the bundle against the local sources.
+overrides:
+  '@gaowen/dsh-session-notify': workspace:*
+  '@gaowen/dsh-client-ui-notify': workspace:*
