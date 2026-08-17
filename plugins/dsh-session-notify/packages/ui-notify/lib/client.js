@@ -265,7 +265,7 @@ window.__ModuleLoader__.load({
 			const [volDraft, setVolDraft] = (0, react.useState)(null);
 			const rootRef = (0, react.useRef)(null);
 			const running = useSession((snapshot) => snapshot.running);
-			const value = (0, react.useSyncExternalStore)(settings.subscribe, settings.getSnapshot).value;
+			const value = (0, react.useSyncExternalStore)((listener) => settings.subscribe(listener), () => settings.getSnapshot()).value;
 			(0, react.useEffect)(() => {
 				let cancelled = false;
 				setArmed(null);

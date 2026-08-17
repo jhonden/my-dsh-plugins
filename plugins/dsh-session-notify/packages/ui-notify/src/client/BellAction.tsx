@@ -165,7 +165,12 @@ export function BellAction({ sessionId, useSession, t, settings, call }: BellAct
   const running = useSession((snapshot) => snapshot.running)
 
   // Reactive settings section (stable snapshot reference until a change).
-  const settingsSnapshot = useSyncExternalStore(settings.subscribe, settings.getSnapshot)
+  // The scope methods rely on `this`, so wrap them in arrows before handing
+  // them to React — a bare reference would lose the binding and crash.
+  const settingsSnapshot = useSyncExternalStore(
+    (listener) => settings.subscribe(listener),
+    () => settings.getSnapshot(),
+  )
   const value = settingsSnapshot.value
 
   // Fetch armed state when the current session changes.
