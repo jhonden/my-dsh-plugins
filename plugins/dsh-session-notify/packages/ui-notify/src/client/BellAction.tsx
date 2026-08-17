@@ -155,7 +155,10 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
   const [open, setOpen] = useState(false)
   const [names, setNames] = useState<string[]>([])
   const [prefs, setPrefs] = useState<NotifyPrefs | null>(null)
-  const [customPath, setCustomPath] = useState('')
+  /** Explicit "custom file" selection — drives the path input's visibility. */
+  const [customMode, setCustomMode] = useState(false)
+  /** In-progress custom path text (null = show the saved value). */
+  const [customDraft, setCustomDraft] = useState<string | null>(null)
   const [volDraft, setVolDraft] = useState<number | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const running = useSession((snapshot) => snapshot.running)
@@ -198,7 +201,10 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
 
   // Playback prefs: refresh on mount/session change and every time the panel
   // opens (the Host value can move via the Settings page or settings.yaml).
+  // Reset the custom-file UI so the saved value decides the panel's shape.
   useEffect(() => {
+    setCustomMode(false)
+    setCustomDraft(null)
     let cancelled = false
     void call.getPrefs(sessionId).then((outcome) => {
       if (!cancelled && outcome.ok) setPrefs(outcome.value)
@@ -242,7 +248,7 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
   const isRunning = running && isArmed
   const label = isArmed ? (isRunning ? t('state.armedRunning') : t('action.disarm')) : t('action.arm')
   const currentSound = prefs?.sound ?? ''
-  const isCustom = currentSound !== '' && !names.includes(currentSound)
+  const isCustom = customMode || (currentSound !== '' && !names.includes(currentSound))
   const volume = volDraft ?? ((prefs?.volume ?? 1) * 100)
 
   return (
@@ -281,9 +287,12 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
               onChange={(event) => {
                 const picked = event.target.value
                 if (picked === CUSTOM_KEY) {
-                  setCustomPath(isCustom ? currentSound : '')
+                  setCustomMode(true)
+                  setCustomDraft('')
                   return
                 }
+                setCustomMode(false)
+                setCustomDraft(null)
                 writePrefs({ sound: picked })
               }}
               aria-label={t('sound.label')}
@@ -300,20 +309,20 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
               <input
                 style={fieldStyle}
                 type="text"
-                value={customPath === '' ? currentSound : customPath}
+                value={customDraft ?? currentSound}
                 placeholder={t('sound.customPlaceholder')}
                 aria-label={t('sound.customPlaceholder')}
-                onChange={(event) => setCustomPath(event.target.value)}
+                onChange={(event) => setCustomDraft(event.target.value)}
                 onBlur={(event) => {
                   const path = event.target.value.trim()
                   if (path !== '') writePrefs({ sound: path })
-                  setCustomPath('')
+                  setCustomDraft(null)
                 }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
                     const path = (event.target as HTMLInputElement).value.trim()
                     if (path !== '') writePrefs({ sound: path })
-                    setCustomPath('')
+                    setCustomDraft(null)
                   }
                 }}
               />

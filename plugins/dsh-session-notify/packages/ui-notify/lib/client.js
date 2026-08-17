@@ -275,7 +275,10 @@ window.__ModuleLoader__.load({
 			const [open, setOpen] = (0, react.useState)(false);
 			const [names, setNames] = (0, react.useState)([]);
 			const [prefs, setPrefs] = (0, react.useState)(null);
-			const [customPath, setCustomPath] = (0, react.useState)("");
+			/** Explicit "custom file" selection — drives the path input's visibility. */
+			const [customMode, setCustomMode] = (0, react.useState)(false);
+			/** In-progress custom path text (null = show the saved value). */
+			const [customDraft, setCustomDraft] = (0, react.useState)(null);
 			const [volDraft, setVolDraft] = (0, react.useState)(null);
 			const rootRef = (0, react.useRef)(null);
 			const running = useSession((snapshot) => snapshot.running);
@@ -312,6 +315,8 @@ window.__ModuleLoader__.load({
 				};
 			}, [sessionId, call]);
 			(0, react.useEffect)(() => {
+				setCustomMode(false);
+				setCustomDraft(null);
 				let cancelled = false;
 				call.getPrefs(sessionId).then((outcome) => {
 					if (!cancelled && outcome.ok) setPrefs(outcome.value);
@@ -353,7 +358,7 @@ window.__ModuleLoader__.load({
 			const isRunning = running && isArmed;
 			const label = isArmed ? isRunning ? t("state.armedRunning") : t("action.disarm") : t("action.arm");
 			const currentSound = prefs?.sound ?? "";
-			const isCustom = currentSound !== "" && !names.includes(currentSound);
+			const isCustom = customMode || currentSound !== "" && !names.includes(currentSound);
 			const volume = volDraft ?? (prefs?.volume ?? 1) * 100;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				ref: rootRef,
@@ -400,9 +405,12 @@ window.__ModuleLoader__.load({
 									onChange: (event) => {
 										const picked = event.target.value;
 										if (picked === CUSTOM_KEY) {
-											setCustomPath(isCustom ? currentSound : "");
+											setCustomMode(true);
+											setCustomDraft("");
 											return;
 										}
+										setCustomMode(false);
+										setCustomDraft(null);
 										writePrefs({ sound: picked });
 									},
 									"aria-label": t("sound.label"),
@@ -427,20 +435,20 @@ window.__ModuleLoader__.load({
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 									style: fieldStyle,
 									type: "text",
-									value: customPath === "" ? currentSound : customPath,
+									value: customDraft ?? currentSound,
 									placeholder: t("sound.customPlaceholder"),
 									"aria-label": t("sound.customPlaceholder"),
-									onChange: (event) => setCustomPath(event.target.value),
+									onChange: (event) => setCustomDraft(event.target.value),
 									onBlur: (event) => {
 										const path = event.target.value.trim();
 										if (path !== "") writePrefs({ sound: path });
-										setCustomPath("");
+										setCustomDraft(null);
 									},
 									onKeyDown: (event) => {
 										if (event.key === "Enter") {
 											const path = event.target.value.trim();
 											if (path !== "") writePrefs({ sound: path });
-											setCustomPath("");
+											setCustomDraft(null);
 										}
 									}
 								})
