@@ -29,6 +29,8 @@ export declare class SessionNotifyService extends TypertRemoteService {
         }>>;
         volume: z.ZodOptional<z.ZodNumber>;
         stateFile: z.ZodOptional<z.ZodString>;
+        uploadDir: z.ZodOptional<z.ZodString>;
+        maxUploadBytes: z.ZodDefault<z.ZodNumber>;
     }, z.core.$strip>>;
     /** Armed sessions (persisted): session id → armed flag. */
     private readonly armed;
@@ -37,6 +39,8 @@ export declare class SessionNotifyService extends TypertRemoteService {
     /** Playback seam; tests override {@link playSound}. */
     protected readonly player: SoundPlayer;
     private readonly stateFile;
+    private readonly uploadDir;
+    private readonly maxUploadBytes;
     /** The authoritative playback config: the settings section while one is attached, the entry otherwise. */
     protected settingsSource: () => SessionNotifySettings;
     /**
@@ -73,6 +77,19 @@ export declare class SessionNotifyService extends TypertRemoteService {
     private prefsSnapshot;
     /** Direct in-memory application when the settings service is absent. */
     private applySettingsPatch;
+    /**
+     * The custom-sound upload route: same-origin fence, POST body read as a raw
+     * byte stream with extension + size caps, stored under the plugin's sounds
+     * directory, and the stored absolute path returned so the client can save it
+     * into the prefs.
+     */
+    private handleUpload;
+    /**
+     * Same-origin fence for the upload route: a browser's own fetch to this
+     * origin carries `Sec-Fetch-Site: same-origin`; a cross-site embed carries
+     * `cross-site`. Non-browser clients (curl, tests) send no Sec-Fetch headers.
+     */
+    private isSameOrigin;
     /** The status listener: a run completing while armed plays the sound. */
     private onAgentStatus;
     /** A disposed session must never notify; drop its state. */

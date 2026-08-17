@@ -10,8 +10,10 @@ export const zh = {
   'sound.label': '提示音',
   'sound.system': '系统音效',
   'sound.custom': '自定义文件…',
-  'sound.customPlaceholder': '输入音频文件绝对路径',
-  'sound.unavailable': '当前平台无内置音效，请输入文件路径',
+  'sound.chooseFile': '选择音频文件…',
+  'sound.uploading': '上传中…',
+  'sound.uploadError': '上传失败：{reason}',
+  'sound.unavailable': '当前平台无内置音效，请选择音频文件',
   'volume.label': '音量',
 } as const
 
@@ -25,8 +27,10 @@ export const en = {
   'sound.label': 'Sound',
   'sound.system': 'System sound',
   'sound.custom': 'Custom file…',
-  'sound.customPlaceholder': 'Absolute audio file path',
-  'sound.unavailable': 'No built-in sounds on this platform — enter a file path',
+  'sound.chooseFile': 'Choose audio file…',
+  'sound.uploading': 'Uploading…',
+  'sound.uploadError': 'Upload failed: {reason}',
+  'sound.unavailable': 'No built-in sounds on this platform — choose an audio file',
   'volume.label': 'Volume',
 } as const
 

@@ -16,6 +16,31 @@ function randomRpcId(): string {
 }
 
 /**
+ * Upload one local audio file to the Host's custom-sound route (raw bytes in
+ * a POST body; the Host stores it and returns the absolute path to save into
+ * the prefs). This route lives outside the `/api` RPC envelope — plain JSON.
+ */
+export async function uploadSound(file: File): Promise<RpcOutcome<{ path: string }>> {
+  try {
+    const response = await fetch(
+      new URL(`/plugins-session-notify/upload?name=${encodeURIComponent(file.name)}`, globalThis.location.origin),
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: file,
+      },
+    )
+    if (!response.ok) {
+      return { ok: false, error: { code: 'upload', message: `HTTP ${response.status}` } }
+    }
+    const value = await response.json() as { path: string }
+    return { ok: true, value }
+  } catch (error) {
+    return { ok: false, error: { code: 'transport', message: error instanceof Error ? error.message : String(error) } }
+  }
+}
+
+/**
  * Build the `sessionNotify` caller bound to the browser origin.
  * @returns typed getState/setArmed/preview functions returning carrier outcomes.
  */

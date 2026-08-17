@@ -18,6 +18,14 @@ export type RpcOutcome<T> = {
     };
 };
 /**
+ * Upload one local audio file to the Host's custom-sound route (raw bytes in
+ * a POST body; the Host stores it and returns the absolute path to save into
+ * the prefs). This route lives outside the `/api` RPC envelope — plain JSON.
+ */
+export declare function uploadSound(file: File): Promise<RpcOutcome<{
+    path: string;
+}>>;
+/**
  * Build the `sessionNotify` caller bound to the browser origin.
  * @returns typed getState/setArmed/preview functions returning carrier outcomes.
  */

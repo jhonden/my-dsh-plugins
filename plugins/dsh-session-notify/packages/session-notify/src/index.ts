@@ -18,12 +18,14 @@
  * Armed state is persisted (debounced, atomic) under
  * `$DSH_HOME/plugins/dsh-session-notify/armed.json` so it survives restarts.
  */
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cordis'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
+import type {} from '@deepseek-ai/dsh-host-webserver'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 import type { SettingsPathOp, SettingsProvider } from '@deepseek-ai/dsh-settings'
@@ -33,6 +35,7 @@ import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
 import { applyNotifyMarker } from './marker.ts'
 import { MACOS_SOUND_NAMES, SoundPlayer } from './sound.ts'
+import { DEFAULT_MAX_UPLOAD_BYTES, UploadRejectedError, UploadTooLargeError, saveUpload } from './sound-upload.ts'
 import {
   SESSION_NOTIFY_SETTINGS_NAMESPACE,
   SESSION_NOTIFY_SETTINGS_SCHEMA,
@@ -81,7 +84,11 @@ export class SessionNotifyService extends TypertRemoteService {
     volume: z.number().min(0).max(1).optional(),
     /** State-file override (tests); defaults under the dsh home. */
     stateFile: z.string().optional(),
-  }).default(() => ({ sound: 'Glass', mode: 'one-shot' } as const))
+    /** Custom-sound storage dir override (tests); defaults under the dsh home. */
+    uploadDir: z.string().optional(),
+    /** Maximum accepted custom-sound upload size in bytes. */
+    maxUploadBytes: z.number().int().positive().default(DEFAULT_MAX_UPLOAD_BYTES),
+  }).default(() => ({ sound: 'Glass', mode: 'one-shot', maxUploadBytes: DEFAULT_MAX_UPLOAD_BYTES } as const))
 
   /** Armed sessions (persisted): session id → armed flag. */
   private readonly armed = new Map<string, boolean>()
@@ -90,6 +97,8 @@ export class SessionNotifyService extends TypertRemoteService {
   /** Playback seam; tests override {@link playSound}. */
   protected readonly player = new SoundPlayer()
   private readonly stateFile: string
+  private readonly uploadDir: string
+  private readonly maxUploadBytes: number
   /** The authoritative playback config: the settings section while one is attached, the entry otherwise. */
   protected settingsSource: () => SessionNotifySettings
   /**
@@ -105,7 +114,7 @@ export class SessionNotifyService extends TypertRemoteService {
   /** Settles when persisted armed state has been read; state reads await it. */
   private readonly ready: Promise<void>
 
-  constructor(ctx: Context, config: Config = { sound: 'Glass', mode: 'one-shot' } as const) {
+  constructor(ctx: Context, config: Config = { sound: 'Glass', mode: 'one-shot', maxUploadBytes: DEFAULT_MAX_UPLOAD_BYTES } as const) {
     super(ctx, 'sessionNotify')
     // Parse through the schema so field defaults apply for direct construction
     // (tests, embedded use) exactly as they do for cordis.yml rows.
@@ -114,8 +123,19 @@ export class SessionNotifyService extends TypertRemoteService {
     this.mode = resolved.mode
     this.volume = resolved.volume
     this.stateFile = resolved.stateFile ?? dshHomePath('plugins', 'dsh-session-notify', 'armed.json')
+    this.uploadDir = resolved.uploadDir ?? dshHomePath('plugins', 'dsh-session-notify', 'sounds')
+    this.maxUploadBytes = resolved.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES
     this.settingsSource = () => ({ sound: this.sound, volume: this.volume ?? 1, mode: this.mode })
     this.ready = this.load()
+    ctx.inject(['webServer'], (webCtx) => {
+      ctx.effect(() => webCtx.webServer.register({
+        kind: 'exact',
+        path: '/plugins-session-notify/upload',
+        handler: (req, res) => {
+          void this.handleUpload(req, res)
+        },
+      }), 'session-notify: sound upload route')
+    })
     // User settings override the entry config as the composition base; changes
     // are hot-reloaded from `$DSH_HOME/settings.yaml` (no restart needed).
     installSettingsSection(
@@ -222,6 +242,60 @@ export class SessionNotifyService extends TypertRemoteService {
     if (request.sound !== undefined) this.sound = request.sound
     if (request.volume !== undefined) this.volume = request.volume
     if (request.mode !== undefined) this.mode = request.mode
+  }
+
+  /**
+   * The custom-sound upload route: same-origin fence, POST body read as a raw
+   * byte stream with extension + size caps, stored under the plugin's sounds
+   * directory, and the stored absolute path returned so the client can save it
+   * into the prefs.
+   */
+  private async handleUpload(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const fail = (status: number, code: string): void => {
+      if (res.headersSent) {
+        res.destroy()
+        return
+      }
+      res.writeHead(status, { 'content-type': 'text/plain' })
+      res.end(code)
+    }
+    if (!this.isSameOrigin(req)) {
+      fail(403, 'cross-origin denied')
+      return
+    }
+    if (req.method !== 'POST') {
+      fail(405, 'method not allowed')
+      return
+    }
+    const url = new URL(req.url ?? '/', 'http://localhost')
+    const name = url.searchParams.get('name') ?? ''
+    try {
+      const path = await saveUpload(this.uploadDir, name, req, this.maxUploadBytes)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ path }))
+    } catch (error) {
+      if (error instanceof UploadTooLargeError) {
+        fail(413, 'upload too large')
+      } else if (error instanceof UploadRejectedError) {
+        fail(400, error.message)
+      } else {
+        console.warn('[session-notify] sound upload failed:', error)
+        fail(500, 'upload failed')
+      }
+    }
+  }
+
+  /**
+   * Same-origin fence for the upload route: a browser's own fetch to this
+   * origin carries `Sec-Fetch-Site: same-origin`; a cross-site embed carries
+   * `cross-site`. Non-browser clients (curl, tests) send no Sec-Fetch headers.
+   */
+  private isSameOrigin(req: IncomingMessage): boolean {
+    const site = req.headers['sec-fetch-site']
+    if (site === undefined) {
+      return req.headers.origin === undefined || req.headers.referer === undefined
+    }
+    return site === 'same-origin' || site === 'same-site' || site === 'none'
   }
 
   /** The status listener: a run completing while armed plays the sound. */

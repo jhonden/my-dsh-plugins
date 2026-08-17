@@ -18,8 +18,10 @@ window.__ModuleLoader__.load({
 			"sound.label": "提示音",
 			"sound.system": "系统音效",
 			"sound.custom": "自定义文件…",
-			"sound.customPlaceholder": "输入音频文件绝对路径",
-			"sound.unavailable": "当前平台无内置音效，请输入文件路径",
+			"sound.chooseFile": "选择音频文件…",
+			"sound.uploading": "上传中…",
+			"sound.uploadError": "上传失败：{reason}",
+			"sound.unavailable": "当前平台无内置音效，请选择音频文件",
 			"volume.label": "音量"
 		};
 		const en = {
@@ -32,8 +34,10 @@ window.__ModuleLoader__.load({
 			"sound.label": "Sound",
 			"sound.system": "System sound",
 			"sound.custom": "Custom file…",
-			"sound.customPlaceholder": "Absolute audio file path",
-			"sound.unavailable": "No built-in sounds on this platform — enter a file path",
+			"sound.chooseFile": "Choose audio file…",
+			"sound.uploading": "Uploading…",
+			"sound.uploadError": "Upload failed: {reason}",
+			"sound.unavailable": "No built-in sounds on this platform — choose an audio file",
 			"volume.label": "Volume"
 		};
 		/** Locale namespace owning the bell's copy. */
@@ -43,6 +47,39 @@ window.__ModuleLoader__.load({
 		/** Random rpcId in the same UUID shape the shipped client uses. */
 		function randomRpcId() {
 			return crypto.randomUUID();
+		}
+		/**
+		* Upload one local audio file to the Host's custom-sound route (raw bytes in
+		* a POST body; the Host stores it and returns the absolute path to save into
+		* the prefs). This route lives outside the `/api` RPC envelope — plain JSON.
+		*/
+		async function uploadSound(file) {
+			try {
+				const response = await fetch(new URL(`/plugins-session-notify/upload?name=${encodeURIComponent(file.name)}`, globalThis.location.origin), {
+					method: "POST",
+					headers: { "content-type": "application/octet-stream" },
+					body: file
+				});
+				if (!response.ok) return {
+					ok: false,
+					error: {
+						code: "upload",
+						message: `HTTP ${response.status}`
+					}
+				};
+				return {
+					ok: true,
+					value: await response.json()
+				};
+			} catch (error) {
+				return {
+					ok: false,
+					error: {
+						code: "transport",
+						message: error instanceof Error ? error.message : String(error)
+					}
+				};
+			}
 		}
 		/**
 		* Build the `sessionNotify` caller bound to the browser origin.
@@ -133,8 +170,8 @@ window.__ModuleLoader__.load({
 		* after the resident access-mode chrome (`conversation.input.left`). It
 		* reads the armed state for the current session from the Host's
 		* `sessionNotify` Remote service, toggles it on click, and its popover is a
-		* small sound-settings panel (system sounds, a custom file path, volume, and
-		* a preview).
+		* small sound-settings panel (system sounds, a custom file picker, volume,
+		* and a preview).
 		*
 		* Preferences are read/written through the Host's `getPrefs`/`setPrefs`
 		* Remotes rather than the browser settings transport, because dsh settings
@@ -275,12 +312,14 @@ window.__ModuleLoader__.load({
 			const [open, setOpen] = (0, react.useState)(false);
 			const [names, setNames] = (0, react.useState)([]);
 			const [prefs, setPrefs] = (0, react.useState)(null);
-			/** Explicit "custom file" selection — drives the path input's visibility. */
+			/** Explicit "custom file" selection — drives the file-picker row's visibility. */
 			const [customMode, setCustomMode] = (0, react.useState)(false);
-			/** In-progress custom path text (null = show the saved value). */
-			const [customDraft, setCustomDraft] = (0, react.useState)(null);
+			/** Custom-file upload progress; the error text when a pick failed. */
+			const [uploading, setUploading] = (0, react.useState)(false);
+			const [uploadError, setUploadError] = (0, react.useState)(null);
 			const [volDraft, setVolDraft] = (0, react.useState)(null);
 			const rootRef = (0, react.useRef)(null);
+			const fileInputRef = (0, react.useRef)(null);
 			const running = useSession((snapshot) => snapshot.running);
 			(0, react.useEffect)(() => {
 				let cancelled = false;
@@ -316,7 +355,7 @@ window.__ModuleLoader__.load({
 			}, [sessionId, call]);
 			(0, react.useEffect)(() => {
 				setCustomMode(false);
-				setCustomDraft(null);
+				setUploadError(null);
 				let cancelled = false;
 				call.getPrefs(sessionId).then((outcome) => {
 					if (!cancelled && outcome.ok) setPrefs(outcome.value);
@@ -357,6 +396,22 @@ window.__ModuleLoader__.load({
 			const isArmed = armed === true;
 			const isRunning = running && isArmed;
 			const label = isArmed ? isRunning ? t("state.armedRunning") : t("action.disarm") : t("action.arm");
+			/** The last path component of a stored sound path (for display). */
+			const fileName = (path) => path.split("/").pop() ?? path;
+			/** Upload a picked file, save its stored path into the prefs, and preview it. */
+			const onFilePicked = async (file) => {
+				if (file === void 0) return;
+				setUploading(true);
+				setUploadError(null);
+				const outcome = await uploadSound(file);
+				setUploading(false);
+				if (!outcome.ok) {
+					setUploadError(outcome.error.message);
+					return;
+				}
+				writePrefs({ sound: outcome.value.path });
+				await call.preview(sessionId);
+			};
 			const currentSound = prefs?.sound ?? "";
 			const isCustom = customMode || currentSound !== "" && !names.includes(currentSound);
 			const volume = volDraft ?? (prefs?.volume ?? 1) * 100;
@@ -406,11 +461,11 @@ window.__ModuleLoader__.load({
 										const picked = event.target.value;
 										if (picked === CUSTOM_KEY) {
 											setCustomMode(true);
-											setCustomDraft("");
+											setUploadError(null);
 											return;
 										}
 										setCustomMode(false);
-										setCustomDraft(null);
+										setUploadError(null);
 										writePrefs({ sound: picked });
 									},
 									"aria-label": t("sound.label"),
@@ -430,28 +485,50 @@ window.__ModuleLoader__.load({
 									]
 								})]
 							}),
-							isCustom ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								style: rowStyle,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-									style: fieldStyle,
-									type: "text",
-									value: customDraft ?? currentSound,
-									placeholder: t("sound.customPlaceholder"),
-									"aria-label": t("sound.customPlaceholder"),
-									onChange: (event) => setCustomDraft(event.target.value),
-									onBlur: (event) => {
-										const path = event.target.value.trim();
-										if (path !== "") writePrefs({ sound: path });
-										setCustomDraft(null);
-									},
-									onKeyDown: (event) => {
-										if (event.key === "Enter") {
-											const path = event.target.value.trim();
-											if (path !== "") writePrefs({ sound: path });
-											setCustomDraft(null);
+							isCustom ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								style: {
+									...rowStyle,
+									alignItems: "center"
+								},
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										type: "button",
+										style: previewButtonStyle,
+										disabled: uploading,
+										onClick: () => fileInputRef.current?.click(),
+										children: uploading ? t("sound.uploading") : t("sound.chooseFile")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+										ref: fileInputRef,
+										type: "file",
+										accept: "audio/*",
+										style: { display: "none" },
+										onChange: (event) => {
+											onFilePicked(event.target.files?.[0]);
+											event.target.value = "";
 										}
-									}
-								})
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										style: {
+											flex: 1,
+											minWidth: 0,
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											whiteSpace: "nowrap",
+											fontSize: "12px",
+											textAlign: "right"
+										},
+										title: currentSound,
+										children: fileName(currentSound)
+									})
+								]
+							}) : null,
+							uploadError !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								style: {
+									fontSize: "11px",
+									color: "#e5484d"
+								},
+								children: t("sound.uploadError", { reason: uploadError })
 							}) : null,
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								style: rowStyle,

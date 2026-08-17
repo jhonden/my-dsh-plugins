@@ -3,8 +3,8 @@
  * after the resident access-mode chrome (`conversation.input.left`). It
  * reads the armed state for the current session from the Host's
  * `sessionNotify` Remote service, toggles it on click, and its popover is a
- * small sound-settings panel (system sounds, a custom file path, volume, and
- * a preview).
+ * small sound-settings panel (system sounds, a custom file picker, volume,
+ * and a preview).
  *
  * Preferences are read/written through the Host's `getPrefs`/`setPrefs`
  * Remotes rather than the browser settings transport, because dsh settings
@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NotifyPrefs } from '@gaowen/dsh-session-notify/types'
 import { NS } from './locales.ts'
-import { notifyRpc } from './rpc.ts'
+import { notifyRpc, uploadSound } from './rpc.ts'
 
 /** Full props for the composer completion bell. */
 export type BellActionProps = PropsRuntime<'conversation.input.left'> & PropsLocale<typeof NS> & {
@@ -155,12 +155,14 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
   const [open, setOpen] = useState(false)
   const [names, setNames] = useState<string[]>([])
   const [prefs, setPrefs] = useState<NotifyPrefs | null>(null)
-  /** Explicit "custom file" selection — drives the path input's visibility. */
+  /** Explicit "custom file" selection — drives the file-picker row's visibility. */
   const [customMode, setCustomMode] = useState(false)
-  /** In-progress custom path text (null = show the saved value). */
-  const [customDraft, setCustomDraft] = useState<string | null>(null)
+  /** Custom-file upload progress; the error text when a pick failed. */
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [volDraft, setVolDraft] = useState<number | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const running = useSession((snapshot) => snapshot.running)
 
   // Fetch armed state when the current session changes.
@@ -204,7 +206,7 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
   // Reset the custom-file UI so the saved value decides the panel's shape.
   useEffect(() => {
     setCustomMode(false)
-    setCustomDraft(null)
+    setUploadError(null)
     let cancelled = false
     void call.getPrefs(sessionId).then((outcome) => {
       if (!cancelled && outcome.ok) setPrefs(outcome.value)
@@ -247,6 +249,24 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
   const isArmed = armed === true
   const isRunning = running && isArmed
   const label = isArmed ? (isRunning ? t('state.armedRunning') : t('action.disarm')) : t('action.arm')
+
+  /** The last path component of a stored sound path (for display). */
+  const fileName = (path: string): string => path.split('/').pop() ?? path
+
+  /** Upload a picked file, save its stored path into the prefs, and preview it. */
+  const onFilePicked = async (file: File | undefined): Promise<void> => {
+    if (file === undefined) return
+    setUploading(true)
+    setUploadError(null)
+    const outcome = await uploadSound(file)
+    setUploading(false)
+    if (!outcome.ok) {
+      setUploadError(outcome.error.message)
+      return
+    }
+    writePrefs({ sound: outcome.value.path })
+    await call.preview(sessionId)
+  }
   const currentSound = prefs?.sound ?? ''
   const isCustom = customMode || (currentSound !== '' && !names.includes(currentSound))
   const volume = volDraft ?? ((prefs?.volume ?? 1) * 100)
@@ -288,11 +308,11 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
                 const picked = event.target.value
                 if (picked === CUSTOM_KEY) {
                   setCustomMode(true)
-                  setCustomDraft('')
+                  setUploadError(null)
                   return
                 }
                 setCustomMode(false)
-                setCustomDraft(null)
+                setUploadError(null)
                 writePrefs({ sound: picked })
               }}
               aria-label={t('sound.label')}
@@ -305,28 +325,43 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
             </select>
           </div>
           {isCustom ? (
-            <div style={rowStyle}>
+            <div style={{ ...rowStyle, alignItems: 'center' }}>
+              <button
+                type="button"
+                style={previewButtonStyle}
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? t('sound.uploading') : t('sound.chooseFile')}
+              </button>
               <input
-                style={fieldStyle}
-                type="text"
-                value={customDraft ?? currentSound}
-                placeholder={t('sound.customPlaceholder')}
-                aria-label={t('sound.customPlaceholder')}
-                onChange={(event) => setCustomDraft(event.target.value)}
-                onBlur={(event) => {
-                  const path = event.target.value.trim()
-                  if (path !== '') writePrefs({ sound: path })
-                  setCustomDraft(null)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    const path = (event.target as HTMLInputElement).value.trim()
-                    if (path !== '') writePrefs({ sound: path })
-                    setCustomDraft(null)
-                  }
+                ref={fileInputRef}
+                type="file"
+                accept="audio/*"
+                style={{ display: 'none' }}
+                onChange={(event) => {
+                  void onFilePicked(event.target.files?.[0])
+                  event.target.value = ''
                 }}
               />
+              <span
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontSize: '12px',
+                  textAlign: 'right',
+                }}
+                title={currentSound}
+              >
+                {fileName(currentSound)}
+              </span>
             </div>
+          ) : null}
+          {uploadError !== null ? (
+            <div style={{ fontSize: '11px', color: '#e5484d' }}>{t('sound.uploadError', { reason: uploadError })}</div>
           ) : null}
           <div style={rowStyle}>
             <span>{t('volume.label')}</span>

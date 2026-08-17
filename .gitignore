@@ -7,3 +7,5 @@ node_modules/
 # `lib/` build outputs are COMMITTED so `dsh plugin add github:jhonden/my-dsh-plugins/...`
 # works without a local build (pnpm installs straight from the git tree).
 # Rebuild (`pnpm build`) and commit whenever src/ changes.
+# personal recordings dropped into the plugin dir (never commit)
+plugins/dsh-session-notify/*.m4a

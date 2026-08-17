@@ -12,6 +12,7 @@ import type { Session, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionNotifyService } from '../src/index.ts'
 import { applyNotifyMarker, stripMarker } from '../src/marker.ts'
 import { MACOS_SOUND_NAMES, resolveSoundPath } from '../src/sound.ts'
+import { saveUpload } from '../src/sound-upload.ts'
 import type { NotifyMode } from '../src/types.ts'
 
 /** Real service with a counted playback seam — no audio is ever spawned. */
@@ -486,5 +487,47 @@ describe('SessionNotifyService listSounds', () => {
     } else {
       expect(result.names).toEqual([])
     }
+  })
+})
+
+describe('sound upload core', () => {
+  let dir: string
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'session-notify-upload-'))
+  })
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  /** A one-shot async iterator over byte chunks (mirrors a request body). */
+  async function* chunks(...parts: Buffer[]): AsyncGenerator<Buffer> {
+    for (const part of parts) yield part
+  }
+
+  it('stores a supported audio upload and returns its absolute path', async () => {
+    const path = await saveUpload(dir, 'my-chime.wav', chunks(Buffer.from('RIFF....')), 1024 * 1024)
+    expect(path.startsWith(dir)).toBe(true)
+    expect(path.endsWith('.wav')).toBe(true)
+    await expect(readFile(path, 'utf8')).resolves.toBe('RIFF....')
+  })
+
+  it('rejects unsupported extensions', async () => {
+    await expect(saveUpload(dir, 'evil.exe', chunks(Buffer.from('MZ')), 1024)).rejects.toThrow(/unsupported audio extension/)
+    await expect(saveUpload(dir, 'noext', chunks(Buffer.from('x')), 1024)).rejects.toThrow(/unsupported audio extension/)
+  })
+
+  it('rejects uploads past the byte cap', async () => {
+    await expect(saveUpload(dir, 'big.wav', chunks(Buffer.alloc(2048)), 1024)).rejects.toThrow(/exceeds 1024 bytes/)
+  })
+
+  it('rejects empty uploads', async () => {
+    await expect(saveUpload(dir, 'empty.wav', chunks(), 1024)).rejects.toThrow(/empty upload/)
+  })
+
+  it('strips path components from the stored file name', async () => {
+    const path = await saveUpload(dir, '../../evil.mp3', chunks(Buffer.from('ID3')), 1024)
+    expect(path).toContain('evil.mp3')
+    expect(path).not.toContain('..')
   })
 })
