@@ -6,10 +6,13 @@ import { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-session'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
+import { SettingsProvider } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { Session, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionNotifyService } from '../src/index.ts'
 import { applyNotifyMarker, stripMarker } from '../src/marker.ts'
-import { resolveSoundPath } from '../src/sound.ts'
+import { MACOS_SOUND_NAMES, resolveSoundPath } from '../src/sound.ts'
+import type { NotifyMode } from '../src/types.ts'
 
 /** Real service with a counted playback seam — no audio is ever spawned. */
 class CountingService extends SessionNotifyService {
@@ -18,6 +21,44 @@ class CountingService extends SessionNotifyService {
   protected playSound(): boolean {
     this.plays += 1
     return true
+  }
+
+  /** Settings-verification reads of the (protected) playback config. */
+  currentSound(): string {
+    return this.sound
+  }
+
+  currentMode(): NotifyMode {
+    return this.mode
+  }
+}
+
+/** Minimal in-memory settings provider so installSettingsSection wiring is testable. */
+class FakeSettingsProvider extends SettingsProvider {
+  readonly writable = true
+
+  private doc: Record<string, unknown> = {}
+
+  get documentPath(): string | undefined {
+    return undefined
+  }
+
+  constructor(ctx: Context) {
+    super(ctx, 'settings')
+  }
+
+  protected async load(): Promise<Record<string, unknown>> {
+    return this.doc
+  }
+
+  protected async persist(_ns: SettingsNamespace, _section: Record<string, unknown>): Promise<void> {
+    // in-memory; push() is the test seam
+  }
+
+  /** Test seam: publish a whole raw document as the file provider would on reload. */
+  push(doc: Record<string, unknown>): void {
+    this.doc = doc
+    this.publish(doc)
   }
 }
 
@@ -305,5 +346,90 @@ describe('sound resolution', () => {
     if (process.platform !== 'darwin') return
     expect(resolveSoundPath('Glass')).toBe('/System/Library/Sounds/Glass.aiff')
     expect(resolveSoundPath('Sosumi')).toBe('/System/Library/Sounds/Sosumi.aiff')
+  })
+
+  it('exposes the ordered macOS sound names for listSounds', () => {
+    expect(MACOS_SOUND_NAMES).toContain('Glass')
+    expect(MACOS_SOUND_NAMES).toContain('Sosumi')
+    expect(MACOS_SOUND_NAMES.length).toBeGreaterThanOrEqual(10)
+  })
+})
+
+describe('SessionNotifyService settings wiring', () => {
+  /** Smallest sleep that lets inject callbacks and settings watchers settle. */
+  const tick = (ms = 20): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+  it('keeps the entry config while no settings service is mounted', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'session-notify-'))
+    try {
+      const ctx = new Context()
+      const service = new CountingService(ctx, { stateFile: join(dir, 'armed.json'), sound: 'Pop' })
+      await tick()
+      expect(service.currentSound()).toBe('Pop')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('adopts the settings section once a settings service is attached', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'session-notify-'))
+    try {
+      const ctx = new Context()
+      const holder: { provider?: FakeSettingsProvider } = {}
+      // Cordis mounts the Service class; grab the instance from the context.
+      await ctx.plugin(FakeSettingsProvider)
+      holder.provider = ctx.settings as FakeSettingsProvider
+      const service = new CountingService(ctx, { stateFile: join(dir, 'armed.json'), sound: 'Pop' })
+      await tick()
+      // Entry config is the composition base below the (absent) user section.
+      expect(service.currentSound()).toBe('Pop')
+      // Push a user section (as settings.yaml reload would) — hot swap, no restart.
+      holder.provider.push({ 'session-notify': { sound: 'Sosumi', mode: 'sticky' } })
+      await tick()
+      expect(service.currentSound()).toBe('Sosumi')
+      expect(service.currentMode()).toBe('sticky')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to the entry config when the settings section is cleared', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'session-notify-'))
+    try {
+      const ctx = new Context()
+      await ctx.plugin(FakeSettingsProvider)
+      const provider = ctx.settings as FakeSettingsProvider
+      const service = new CountingService(ctx, { stateFile: join(dir, 'armed.json'), sound: 'Pop' })
+      await tick()
+      provider.push({ 'session-notify': { sound: 'Sosumi' } })
+      await tick()
+      expect(service.currentSound()).toBe('Sosumi')
+      provider.push({})
+      await tick()
+      expect(service.currentSound()).toBe('Pop')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('SessionNotifyService listSounds', () => {
+  let fixture: Awaited<ReturnType<typeof setup>>
+
+  beforeEach(async () => {
+    fixture = await setup()
+  })
+  afterEach(async () => {
+    await rm(fixture.dir, { recursive: true, force: true })
+  })
+
+  it('lists the macOS system sounds on darwin and nothing elsewhere', async () => {
+    const result = await fixture.service.listSounds(session('session-1'), {})
+    if (process.platform === 'darwin') {
+      expect(result.names).toContain('Glass')
+      expect(result.names.length).toBe(MACOS_SOUND_NAMES.length)
+    } else {
+      expect(result.names).toEqual([])
+    }
   })
 })

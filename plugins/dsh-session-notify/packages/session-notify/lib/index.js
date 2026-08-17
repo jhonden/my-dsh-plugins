@@ -55,10 +55,12 @@ var __esDecorate = (this && this.__esDecorate) || function (ctor, descriptorIn, 
 import { readFile } from 'node:fs/promises';
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write';
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths';
+import { installSettingsSection } from '@deepseek-ai/dsh-settings';
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import { z } from 'zod';
 import { applyNotifyMarker } from "./marker.js";
-import { SoundPlayer } from "./sound.js";
+import { MACOS_SOUND_NAMES, SoundPlayer } from "./sound.js";
+import { SESSION_NOTIFY_SETTINGS_NAMESPACE, SESSION_NOTIFY_SETTINGS_SCHEMA, } from "./settings.js";
 /** Debounce for state-file writes, in milliseconds. */
 const SAVE_DEBOUNCE_MS = 250;
 /**
@@ -72,15 +74,18 @@ let SessionNotifyService = (() => {
     let _getState_decorators;
     let _setArmed_decorators;
     let _preview_decorators;
+    let _listSounds_decorators;
     return class SessionNotifyService extends _classSuper {
         static {
             const _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(_classSuper[Symbol.metadata] ?? null) : void 0;
             _getState_decorators = [Remote('getState')];
             _setArmed_decorators = [Remote('setArmed')];
             _preview_decorators = [Remote('preview')];
+            _listSounds_decorators = [Remote('listSounds')];
             __esDecorate(this, null, _getState_decorators, { kind: "method", name: "getState", static: false, private: false, access: { has: obj => "getState" in obj, get: obj => obj.getState }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _setArmed_decorators, { kind: "method", name: "setArmed", static: false, private: false, access: { has: obj => "setArmed" in obj, get: obj => obj.setArmed }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _preview_decorators, { kind: "method", name: "preview", static: false, private: false, access: { has: obj => "preview" in obj, get: obj => obj.preview }, metadata: _metadata }, null, _instanceExtraInitializers);
+            __esDecorate(this, null, _listSounds_decorators, { kind: "method", name: "listSounds", static: false, private: false, access: { has: obj => "listSounds" in obj, get: obj => obj.listSounds }, metadata: _metadata }, null, _instanceExtraInitializers);
             if (_metadata) Object.defineProperty(this, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
         }
         /** Schema for the cordis.yml row; the same object serves constructor config. */
@@ -101,6 +106,8 @@ let SessionNotifyService = (() => {
         /** Playback seam; tests override {@link playSound}. */
         player = new SoundPlayer();
         stateFile;
+        /** The authoritative playback config: the settings section while one is attached, the entry otherwise. */
+        settingsSource;
         mode;
         sound;
         volume;
@@ -116,7 +123,25 @@ let SessionNotifyService = (() => {
             this.mode = resolved.mode;
             this.volume = resolved.volume;
             this.stateFile = resolved.stateFile ?? dshHomePath('plugins', 'dsh-session-notify', 'armed.json');
+            this.settingsSource = () => ({ sound: this.sound, volume: this.volume ?? 1, mode: this.mode });
             this.ready = this.load();
+            // User settings override the entry config as the composition base; changes
+            // are hot-reloaded from `$DSH_HOME/settings.yaml` (no restart needed).
+            installSettingsSection(ctx, SESSION_NOTIFY_SETTINGS_NAMESPACE, SESSION_NOTIFY_SETTINGS_SCHEMA, {
+                sound: resolved.sound,
+                mode: resolved.mode,
+                ...(resolved.volume === undefined ? {} : { volume: resolved.volume }),
+            }, {
+                setSource: (current) => {
+                    this.settingsSource = current;
+                },
+                onChange: () => {
+                    const value = this.settingsSource();
+                    this.sound = value.sound;
+                    this.volume = value.volume;
+                    this.mode = value.mode;
+                },
+            });
             ctx.on('agent/status', ({ agent, status }) => this.onAgentStatus(agent.id, status));
             ctx.on('session/disposed', (session) => this.onSessionDisposed(session.id));
             ctx.on('agent/pre-step', (payload, next) => this.onPreStep(payload, next));
@@ -140,6 +165,10 @@ let SessionNotifyService = (() => {
         /** Play the configured sound immediately (sound preview / test). */
         async preview(_session, _request) {
             return { ok: this.playSound() };
+        }
+        /** Named sounds the host can play directly (macOS system sounds; empty elsewhere). */
+        async listSounds(_session, _request) {
+            return { names: process.platform === 'darwin' ? [...MACOS_SOUND_NAMES] : [] };
         }
         /** The status listener: a run completing while armed plays the sound. */
         onAgentStatus(id, status) {

@@ -14,7 +14,13 @@ window.__ModuleLoader__.load({
 			"action.preview": "试听提示音",
 			"aria.armed": "完成提醒已开启",
 			"aria.unarmed": "完成提醒已关闭",
-			"state.armedRunning": "任务运行中，完成后响铃提醒"
+			"state.armedRunning": "任务运行中，完成后响铃提醒",
+			"sound.label": "提示音",
+			"sound.system": "系统音效",
+			"sound.custom": "自定义文件…",
+			"sound.customPlaceholder": "输入音频文件绝对路径",
+			"sound.unavailable": "当前平台无内置音效，请输入文件路径",
+			"volume.label": "音量"
 		};
 		const en = {
 			"action.arm": "Notify me when finished",
@@ -22,7 +28,13 @@ window.__ModuleLoader__.load({
 			"action.preview": "Preview sound",
 			"aria.armed": "Completion alert on",
 			"aria.unarmed": "Completion alert off",
-			"state.armedRunning": "Running — will alert when finished"
+			"state.armedRunning": "Running — will alert when finished",
+			"sound.label": "Sound",
+			"sound.system": "System sound",
+			"sound.custom": "Custom file…",
+			"sound.customPlaceholder": "Absolute audio file path",
+			"sound.unavailable": "No built-in sounds on this platform — enter a file path",
+			"volume.label": "Volume"
 		};
 		/** Locale namespace owning the bell's copy. */
 		const NS = "dsh-notify";
@@ -99,6 +111,10 @@ window.__ModuleLoader__.load({
 				preview: (sessionId, signal) => call("preview", {
 					sessionId,
 					request: {}
+				}, signal),
+				listSounds: (sessionId, signal) => call("listSounds", {
+					sessionId,
+					request: {}
 				}, signal)
 			};
 		}
@@ -108,10 +124,13 @@ window.__ModuleLoader__.load({
 		* The completion bell: one compact control in the composer's tool row, right
 		* after the resident access-mode chrome (`conversation.input.left`). It
 		* reads the armed state for the current session from the Host's
-		* `sessionNotify` Remote service, toggles it on click, offers a sound
-		* preview in a tiny popover, and re-syncs after a run completes (the Host
-		* auto-disarms in one-shot mode, so the bell must refetch to un-light).
+		* `sessionNotify` Remote service, toggles it on click, and its popover is a
+		* small sound-settings panel (system sounds, a custom file path, volume, and
+		* a preview) bound to the `session-notify` settings namespace — hot-reloaded
+		* from `$DSH_HOME/settings.yaml`, shared with the Settings page.
 		*/
+		/** select value for the custom-file option. */
+		const CUSTOM_KEY = "__custom__";
 		/** Bell outline (unarmed). */
 		function BellOutline() {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
@@ -142,7 +161,7 @@ window.__ModuleLoader__.load({
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M13.73 21a2 2 0 0 1-3.46 0" })]
 			});
 		}
-		/** Small caret opening the preview popover. */
+		/** Small caret opening the settings popover. */
 		function Caret() {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 				width: "10",
@@ -178,29 +197,47 @@ window.__ModuleLoader__.load({
 			position: "relative",
 			borderRadius: "6px"
 		};
-		const menuStyle = {
+		const panelStyle = {
 			position: "absolute",
-			top: "calc(100% + 4px)",
-			right: 0,
-			zIndex: 30,
-			minWidth: "128px",
-			padding: "4px",
-			borderRadius: "8px",
+			top: "calc(100% + 6px)",
+			left: 0,
+			zIndex: 40,
+			width: "248px",
+			padding: "10px",
+			borderRadius: "10px",
 			background: "var(--dsh-color-bg-elevated, #ffffff)",
 			border: "1px solid rgba(128, 128, 128, 0.25)",
-			boxShadow: "0 4px 16px rgba(0, 0, 0, 0.12)",
-			listStyle: "none",
-			margin: 0
+			boxShadow: "0 6px 20px rgba(0, 0, 0, 0.14)",
+			display: "flex",
+			flexDirection: "column",
+			gap: "8px"
 		};
-		const menuItemStyle = {
+		const rowStyle = {
 			display: "flex",
 			alignItems: "center",
-			gap: "6px",
-			width: "100%",
-			border: "none",
+			justifyContent: "space-between",
+			gap: "8px",
+			fontSize: "12px"
+		};
+		const fieldStyle = {
+			flex: 1,
+			minWidth: 0,
+			border: "1px solid rgba(128, 128, 128, 0.3)",
+			borderRadius: "6px",
 			background: "transparent",
-			borderRadius: "4px",
-			padding: "6px 8px",
+			color: "inherit",
+			padding: "4px 6px",
+			fontSize: "12px"
+		};
+		const rangeStyle = {
+			flex: 1,
+			accentColor: "currentColor"
+		};
+		const previewButtonStyle = {
+			border: "1px solid rgba(128, 128, 128, 0.3)",
+			background: "transparent",
+			borderRadius: "6px",
+			padding: "4px 10px",
 			fontSize: "12px",
 			cursor: "pointer",
 			color: "inherit"
@@ -216,40 +253,51 @@ window.__ModuleLoader__.load({
 		};
 		/**
 		* The completion bell for one session, sitting beside the access-mode chrome:
-		* click to arm/disarm, a caret opens the sound preview, and the run's
-		* `running` flag drives a status dot plus the one-shot re-sync performed by
-		* the Host.
-		* @param props - framework slot currency plus the namespace translator.
+		* click to arm/disarm; the caret opens the sound-settings panel bound to the
+		* shared `session-notify` settings namespace.
+		* @param props - framework slot currency, the namespace translator, and the injected faces.
 		*/
-		function BellAction({ sessionId, useSession, t }) {
+		function BellAction({ sessionId, useSession, t, settings, call }) {
 			const [armed, setArmed] = (0, react.useState)(null);
 			const [open, setOpen] = (0, react.useState)(false);
-			const rpc = (0, react.useMemo)(() => notifyRpc(), []);
-			const running = useSession((snapshot) => snapshot.running);
+			const [names, setNames] = (0, react.useState)([]);
+			const [customPath, setCustomPath] = (0, react.useState)("");
+			const [volDraft, setVolDraft] = (0, react.useState)(null);
 			const rootRef = (0, react.useRef)(null);
+			const running = useSession((snapshot) => snapshot.running);
+			const value = (0, react.useSyncExternalStore)(settings.subscribe, settings.getSnapshot).value;
 			(0, react.useEffect)(() => {
 				let cancelled = false;
 				setArmed(null);
-				rpc.getState(sessionId).then((outcome) => {
+				call.getState(sessionId).then((outcome) => {
 					if (!cancelled && outcome.ok) setArmed(outcome.value.armed);
 				});
 				return () => {
 					cancelled = true;
 				};
-			}, [sessionId, rpc]);
+			}, [sessionId, call]);
 			const prevRunning = (0, react.useRef)(running);
 			(0, react.useEffect)(() => {
 				const wasRunning = prevRunning.current;
 				prevRunning.current = running;
-				if (wasRunning && !running && armed === true) rpc.getState(sessionId).then((outcome) => {
+				if (wasRunning && !running && armed === true) call.getState(sessionId).then((outcome) => {
 					if (outcome.ok) setArmed(outcome.value.armed);
 				});
 			}, [
 				running,
 				armed,
 				sessionId,
-				rpc
+				call
 			]);
+			(0, react.useEffect)(() => {
+				let cancelled = false;
+				call.listSounds(sessionId).then((outcome) => {
+					if (!cancelled && outcome.ok) setNames(outcome.value.names);
+				});
+				return () => {
+					cancelled = true;
+				};
+			}, [sessionId, call]);
 			(0, react.useEffect)(() => {
 				if (!open) return;
 				const closeOutside = (event) => {
@@ -263,16 +311,18 @@ window.__ModuleLoader__.load({
 			const toggle = async () => {
 				const next = !(armed ?? false);
 				setArmed(next);
-				const outcome = await rpc.setArmed(sessionId, next);
+				const outcome = await call.setArmed(sessionId, next);
 				if (outcome.ok) setArmed(outcome.value.armed);
 			};
 			const preview = async () => {
-				setOpen(false);
-				await rpc.preview(sessionId);
+				await call.preview(sessionId);
 			};
 			const isArmed = armed === true;
 			const isRunning = running && isArmed;
 			const label = isArmed ? isRunning ? t("state.armedRunning") : t("action.disarm") : t("action.arm");
+			const currentSound = value?.sound ?? "";
+			const isCustom = currentSound !== "" && !names.includes(currentSound);
+			const volume = volDraft ?? (value?.volume ?? 1) * 100;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				ref: rootRef,
 				style: groupStyle,
@@ -305,20 +355,107 @@ window.__ModuleLoader__.load({
 						style: dotStyle,
 						"aria-hidden": "true"
 					}) : null,
-					open ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-						style: menuStyle,
-						role: "menu",
-						"aria-label": t("action.preview"),
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
-							role: "none",
-							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								type: "button",
-								role: "menuitem",
-								style: menuItemStyle,
-								onClick: () => void preview(),
-								children: t("action.preview")
+					open ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						style: panelStyle,
+						role: "dialog",
+						"aria-label": t("sound.label"),
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								style: rowStyle,
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("sound.label") }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
+									style: fieldStyle,
+									value: isCustom ? CUSTOM_KEY : currentSound,
+									onChange: (event) => {
+										const picked = event.target.value;
+										if (picked === CUSTOM_KEY) {
+											setCustomPath(isCustom ? currentSound : "");
+											return;
+										}
+										settings.set("sound", picked);
+									},
+									"aria-label": t("sound.label"),
+									children: [
+										names.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+											value: "",
+											children: t("sound.unavailable")
+										}) : null,
+										names.map((name) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+											value: name,
+											children: name
+										}, name)),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+											value: CUSTOM_KEY,
+											children: t("sound.custom")
+										})
+									]
+								})]
+							}),
+							isCustom ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								style: rowStyle,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+									style: fieldStyle,
+									type: "text",
+									value: customPath === "" ? currentSound : customPath,
+									placeholder: t("sound.customPlaceholder"),
+									"aria-label": t("sound.customPlaceholder"),
+									onChange: (event) => setCustomPath(event.target.value),
+									onBlur: (event) => {
+										const path = event.target.value.trim();
+										if (path !== "") settings.set("sound", path);
+										setCustomPath("");
+									},
+									onKeyDown: (event) => {
+										if (event.key === "Enter") {
+											const path = event.target.value.trim();
+											if (path !== "") settings.set("sound", path);
+											setCustomPath("");
+										}
+									}
+								})
+							}) : null,
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								style: rowStyle,
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("volume.label") }),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+										style: rangeStyle,
+										type: "range",
+										min: 0,
+										max: 100,
+										value: Math.round(volume),
+										"aria-label": t("volume.label"),
+										onChange: (event) => setVolDraft(Number(event.target.value)),
+										onPointerUp: () => {
+											if (volDraft !== null) settings.set("volume", volDraft / 100);
+											setVolDraft(null);
+										},
+										onKeyUp: () => {
+											if (volDraft !== null) settings.set("volume", volDraft / 100);
+											setVolDraft(null);
+										}
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+										style: {
+											width: "34px",
+											textAlign: "right"
+										},
+										children: [Math.round(volume), "%"]
+									})
+								]
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								style: {
+									...rowStyle,
+									justifyContent: "center"
+								},
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									style: previewButtonStyle,
+									onClick: () => void preview(),
+									children: t("action.preview")
+								})
 							})
-						})
+						]
 					}) : null
 				]
 			});
@@ -327,8 +464,14 @@ window.__ModuleLoader__.load({
 		//#region src/client/index.ts
 		/** Locale namespace owning the bell's copy. */
 		const NS_NAME = NS;
-		/** Required services: the slot registry and locale. */
-		const inject = ["slots", "locale"];
+		/** Required services: the slot registry, locale, and the settings-namespace transport. */
+		const inject = [
+			"slots",
+			"locale",
+			"settingsScope",
+			"connection",
+			"remote"
+		];
 		/**
 		* Client plugin body: register the dictionaries and the composer bell.
 		* @param ctx - client root context.
@@ -340,11 +483,17 @@ window.__ModuleLoader__.load({
 					for (const dispose of disposers) dispose();
 				};
 			}, "ui-notify: dictionaries");
+			const settings = ctx.settingsScope.bind({ namespace: "session-notify" });
+			const call = notifyRpc();
 			ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
 				name: "conversation.input.left",
 				id: "session-notify",
 				order: 10,
-				locale: NS_NAME
+				locale: NS_NAME,
+				inject: () => ({
+					settings,
+					call
+				})
 			}, BellAction));
 		}
 		//#endregion

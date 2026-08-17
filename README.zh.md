@@ -11,7 +11,7 @@
 | 插件 | 功能 |
 |---|---|
 | [`web-files`](plugins/web-files/) | Web 客户端会话视图中的"文件" tab：工作区文件树 + 只读查看器（markdown 预览走平台渲染器），后端是带沙箱边界的 Host Remote 服务 |
-| [`session-notify`](plugins/dsh-session-notify/) | Web 客户端"会话完成提示音"：输入框工具行铃铛（或 `!notify` 消息前缀）arm 后，该轮执行完成时在用户机器上播放提示音乐 |
+| [`session-notify`](plugins/dsh-session-notify/) | Web 客户端"会话完成提示音"：输入框工具行铃铛（或 `!notify` 消息前缀）arm 后，该轮执行完成时播放提示音乐；提示音可在 GUI 自定义（系统音效/自定义文件/音量，热生效） |
 
 ![web-files](plugins/web-files/docs/screenshots/overview.png)
 

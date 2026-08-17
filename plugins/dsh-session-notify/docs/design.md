@@ -44,6 +44,19 @@
 - 边界：armed 时正在运行 → 当前轮结束即响；空闲会话的直接 `idle` 事件不响；
   `session/disposed` 清理状态不播放。
 
+## 提示音用户自定义（settings 命名空间）
+
+- 新增 `session-notify` settings 命名空间（schemastery schema）：`sound`、
+  `volume`（`z.percent()` 渲染为滑杆）、`mode`。经
+  `installSettingsSection` 接线：cordis config 作为组合 base 层，用户层写
+  `$DSH_HOME/settings.yaml`，**热生效**（保存即应用，无需重启）。
+- 服务持有 `settingsSource` thunk（settings 挂载时指向 scope，否则回退
+  entry），`onChange` 刷新 `sound/volume/mode`——播放与完成检测始终读当前值。
+- 铃铛面板（client）通过 `ctx.settingsScope.bind({ namespace: 'session-notify' })`
+  读/写同一份设置（`useSyncExternalStore` 响应订阅）；系统音效列表由新的
+  `sessionNotify/listSounds` Remote 提供（macOS 14 种内置音效名）。
+- 侧栏 Settings 页自动渲染该命名空间表单，两处共享同一配置。
+
 ## 播放器（host 进程）
 
 - fire-and-forget `spawn`，`stdio: ignore`；失败只 `warn` 一次，绝不抛错。

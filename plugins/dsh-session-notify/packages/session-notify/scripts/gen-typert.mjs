@@ -29,6 +29,9 @@ const _setArmedResult$schema = z.object({
 const _previewResult$schema = z.object({
   'ok': z.boolean(),
 })
+const _soundListResult$schema = z.object({
+  'names': z.array(z.string()),
+})
 
 const NOTIFY_DOC = 'Session notification service (\`ctx.sessionNotify\`): the Host half of the completion bell. Remote methods read/write the armed flag for the calling session; the event listeners drive the sound at run completion.'
 const NOTIFY_JSDOC = '/**\\n * Session notification service (\`ctx.sessionNotify\`): the Host half of the\\n * completion bell. Remote methods read/write the armed flag for the calling\\n * session; the event listeners drive the sound at run completion.\\n */'
@@ -147,6 +150,42 @@ export const TYPERT = {
       },
       sourceLocation: { 'file': 'plugins/dsh-session-notify/packages/session-notify/src/index.ts', 'line': 108, 'column': 9 },
     },
+    {
+      id: '@gaowen/dsh-session-notify#sessionNotify/listSounds',
+      service: 'sessionNotify',
+      namespace: 'sessionNotify',
+      method: 'listSounds',
+      invocation: { kind: 'direct' },
+      parameters: [
+        {
+          name: 'session',
+          wire: 'sessionId',
+          source: 'lookup',
+          lookup: 'session',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@deepseek-ai/dsh-session/types#SessionId',
+            schema: _sessionId$schema,
+          },
+        },
+        {
+          name: 'request',
+          wire: 'request',
+          source: 'json',
+          codec: {
+            mode: 'strict',
+            typeSymbol: '@gaowen/dsh-session-notify/types#NotifyGetStateRequest',
+            schema: _getStateRequest$schema,
+          },
+        },
+      ],
+      result: {
+        mode: 'strict',
+        typeSymbol: '@gaowen/dsh-session-notify/types#NotifySoundListResult',
+        schema: _soundListResult$schema,
+      },
+      sourceLocation: { 'file': 'plugins/dsh-session-notify/packages/session-notify/src/index.ts', 'line': 118, 'column': 9 },
+    },
   ],
   model: {
     'services': [
@@ -179,6 +218,13 @@ export const TYPERT = {
             'summary': 'Play the configured sound immediately (sound preview / test).',
             'jsDoc': '/** Play the configured sound immediately (sound preview / test). */',
           },
+          {
+            'kind': 'method',
+            'name': 'listSounds',
+            'signature': "@Remote('listSounds') async listSounds(session: Session, request: NotifyGetStateRequest): Promise<NotifySoundListResult>",
+            'summary': 'Named sounds the host can play directly (macOS system sounds; empty elsewhere).',
+            'jsDoc': '/** Named sounds the host can play directly (macOS system sounds; empty elsewhere). */',
+          },
         ],
         'types': [
           {
@@ -200,6 +246,10 @@ export const TYPERT = {
           {
             'name': 'NotifySetArmedResult',
             'declaration': ${decl('export interface NotifySetArmedResult {\n    armed: boolean;\n}')},
+          },
+          {
+            'name': 'NotifySoundListResult',
+            'declaration': ${decl('export interface NotifySoundListResult {\n    names: string[];\n}')},
           },
           {
             'name': 'NotifyState',

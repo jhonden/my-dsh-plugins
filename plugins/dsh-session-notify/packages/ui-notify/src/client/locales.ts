@@ -7,6 +7,12 @@ export const zh = {
   'aria.armed': '完成提醒已开启',
   'aria.unarmed': '完成提醒已关闭',
   'state.armedRunning': '任务运行中，完成后响铃提醒',
+  'sound.label': '提示音',
+  'sound.system': '系统音效',
+  'sound.custom': '自定义文件…',
+  'sound.customPlaceholder': '输入音频文件绝对路径',
+  'sound.unavailable': '当前平台无内置音效，请输入文件路径',
+  'volume.label': '音量',
 } as const
 
 export const en = {
@@ -16,6 +22,12 @@ export const en = {
   'aria.armed': 'Completion alert on',
   'aria.unarmed': 'Completion alert off',
   'state.armedRunning': 'Running — will alert when finished',
+  'sound.label': 'Sound',
+  'sound.system': 'System sound',
+  'sound.custom': 'Custom file…',
+  'sound.customPlaceholder': 'Absolute audio file path',
+  'sound.unavailable': 'No built-in sounds on this platform — enter a file path',
+  'volume.label': 'Volume',
 } as const
 
 /** Union of this namespace's dictionary keys (registered in the LocaleNamespaceMap merge). */

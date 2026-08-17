@@ -24,6 +24,11 @@ export interface NotifyPreviewResult {
     /** Whether a playback was actually launched. */
     ok: boolean;
 }
+/** listSounds response. */
+export interface NotifySoundListResult {
+    /** Named sounds the host can play directly (platform-dependent; empty off macOS). */
+    names: string[];
+}
 /**
  * Notification mode. 'one-shot' plays once and auto-disarms at the first run
  * completion after arming; 'sticky' keeps the session armed so every

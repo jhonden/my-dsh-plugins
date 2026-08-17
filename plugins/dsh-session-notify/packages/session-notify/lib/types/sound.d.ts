@@ -1,3 +1,5 @@
+/** Ordered names of the built-in macOS sounds (the listSounds wire vocabulary). */
+export declare const MACOS_SOUND_NAMES: readonly string[];
 /**
  * Resolve the configured `sound` value to a playable file path. On macOS a
  * bare name resolves against the system sounds directory; elsewhere a bare

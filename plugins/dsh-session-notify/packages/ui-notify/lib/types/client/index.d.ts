@@ -14,7 +14,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
         'dsh-notify': import('./locales.ts').NotifyLocaleKey;
     }
 }
-/** Required services: the slot registry and locale. */
+/** Required services: the slot registry, locale, and the settings-namespace transport. */
 export declare const inject: string[];
 /**
  * Client plugin body: register the dictionaries and the composer bell.

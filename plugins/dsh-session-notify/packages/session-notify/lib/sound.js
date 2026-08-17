@@ -22,6 +22,8 @@ const MACOS_SOUNDS = {
     Submarine: '/System/Library/Sounds/Submarine.aiff',
     Tink: '/System/Library/Sounds/Tink.aiff',
 };
+/** Ordered names of the built-in macOS sounds (the listSounds wire vocabulary). */
+export const MACOS_SOUND_NAMES = Object.keys(MACOS_SOUNDS);
 /** Values accepted as an explicit path rather than a named macOS sound. */
 function looksLikePath(value) {
     return value.startsWith('/') || value.includes('\\') || /\.(aiff|aif|wav|mp3|m4a|ogg)$/i.test(value);

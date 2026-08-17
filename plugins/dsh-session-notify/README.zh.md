@@ -52,13 +52,36 @@ dsh plugin --profile web add link:$(pwd)/plugins/dsh-session-notify/bundle/sessi
    - 空心 → 实心：已 armed，本轮（或下一轮）执行完成后响铃。
    - armed 且会话正在运行：铃铛右上角出现橙色小圆点。
    - 再点一次：取消提醒。
-3. 铃铛旁的小箭头 →「试听提示音」：立即播放当前配置的音效，方便挑选。
+3. 铃铛旁的小箭头打开「提示音设置」面板：
+   - 选择系统音效（macOS 内置 14 种）或输入自定义音频文件的绝对路径；
+   - 拖动音量滑杆（0–100%）；点「试听」立即播放当前选择。
+   - 设置即时生效并写入 `$DSH_HOME/settings.yaml`（`session-notify` 段），
+     侧栏 Settings 页也会出现同一份配置表单。
 4. 或者直接在消息里写 `!notify 帮我……`——模型只会看到"帮我……"。
 
 ## 配置
 
-在 profile 的 `cordis.patch.yml` 里覆盖 `session-notify` 一行的 config 即可（也可在
-安装 bundle 后追加一个 patch 层）：
+### 用户设置（推荐，无需重启）
+
+提示音、音量、提醒模式是用户设置，写入 `$DSH_HOME/settings.yaml` 的
+`session-notify` 段，**热生效**（文件保存即应用，无需重启）。可通过两种方式修改，
+效果相同：
+
+- 输入框铃铛旁的小箭头 →「提示音设置」面板；
+- 侧栏 Settings 页自动渲染的 `session-notify` 表单。
+
+```yaml
+# $DSH_HOME/settings.yaml
+session-notify:
+  sound: Sosumi          # 命名系统音效 或 音频文件绝对路径（默认 Glass）
+  volume: 0.8            # 音量 0..1（默认 1）
+  mode: sticky           # one-shot | sticky（默认 one-shot）
+```
+
+### 插件配置（默认值层，可选）
+
+`cordis.patch.yml` 里覆盖 `session-notify` 一行的 config 作为组合默认层，
+用户设置优先于它：
 
 ```yaml
 - insert:

@@ -5,7 +5,7 @@
  * keeps this distribution free of generated Remote contributions while still
  * using the Gateway-claimed, schema-validated endpoint.
  */
-import type { NotifyPreviewResult, NotifySetArmedResult, NotifyState } from '@gaowen/dsh-session-notify/types';
+import type { NotifyPreviewResult, NotifySetArmedResult, NotifySoundListResult, NotifyState } from '@gaowen/dsh-session-notify/types';
 /** One RPC carrier outcome: a value, or a typed error identity. */
 export type RpcOutcome<T> = {
     ok: true;
@@ -25,5 +25,6 @@ export declare function notifyRpc(): {
     getState: (sessionId: string, signal?: AbortSignal) => Promise<RpcOutcome<NotifyState>>;
     setArmed: (sessionId: string, armed: boolean, signal?: AbortSignal) => Promise<RpcOutcome<NotifySetArmedResult>>;
     preview: (sessionId: string, signal?: AbortSignal) => Promise<RpcOutcome<NotifyPreviewResult>>;
+    listSounds: (sessionId: string, signal?: AbortSignal) => Promise<RpcOutcome<NotifySoundListResult>>;
 };
 //# sourceMappingURL=rpc.d.ts.map

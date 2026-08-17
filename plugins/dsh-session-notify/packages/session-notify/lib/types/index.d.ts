@@ -3,7 +3,8 @@ import type { Session } from '@deepseek-ai/dsh-session';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import { z } from 'zod';
 import { SoundPlayer } from './sound.ts';
-import type { NotifyGetStateRequest, NotifyPreviewResult, NotifySetArmedRequest, NotifySetArmedResult, NotifyState } from './types.ts';
+import { type SessionNotifySettings } from './settings.ts';
+import type { NotifyGetStateRequest, NotifyMode, NotifyPreviewResult, NotifySetArmedRequest, NotifySetArmedResult, NotifySoundListResult, NotifyState } from './types.ts';
 export type * from './types.ts';
 declare module '@deepseek-ai/cordis' {
     interface Context {
@@ -36,9 +37,11 @@ export declare class SessionNotifyService extends TypertRemoteService {
     /** Playback seam; tests override {@link playSound}. */
     protected readonly player: SoundPlayer;
     private readonly stateFile;
-    private readonly mode;
-    private readonly sound;
-    private readonly volume;
+    /** The authoritative playback config: the settings section while one is attached, the entry otherwise. */
+    protected settingsSource: () => SessionNotifySettings;
+    protected mode: NotifyMode;
+    protected sound: string;
+    protected volume: number | undefined;
     private saveTimer;
     /** Settles when persisted armed state has been read; state reads await it. */
     private readonly ready;
@@ -49,6 +52,8 @@ export declare class SessionNotifyService extends TypertRemoteService {
     setArmed(session: Session, request: NotifySetArmedRequest): Promise<NotifySetArmedResult>;
     /** Play the configured sound immediately (sound preview / test). */
     preview(_session: Session, _request: NotifyGetStateRequest): Promise<NotifyPreviewResult>;
+    /** Named sounds the host can play directly (macOS system sounds; empty elsewhere). */
+    listSounds(_session: Session, _request: NotifyGetStateRequest): Promise<NotifySoundListResult>;
     /** The status listener: a run completing while armed plays the sound. */
     private onAgentStatus;
     /** A disposed session must never notify; drop its state. */

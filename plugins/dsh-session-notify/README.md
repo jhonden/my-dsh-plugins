@@ -56,14 +56,37 @@ GitHub installs use the committed artifacts.
    - Outline → filled: armed; the current/next run's completion plays the sound.
    - Armed while running: a small orange dot appears on the bell.
    - Click again: cancel.
-3. The caret beside the bell opens "Preview sound" — plays the configured sound
-   immediately so you can pick one.
+3. The caret beside the bell opens the "Sound settings" panel:
+   - pick a macOS system sound or type an absolute path to a custom audio file;
+   - drag the volume slider (0–100%); "Preview" plays the current choice.
+   Changes take effect immediately and are written to the `session-notify`
+   section of `$DSH_HOME/settings.yaml` — the same form appears on the
+   Settings page.
 4. Or start a message with `!notify 帮我……` — the model only sees "帮我……".
 
 ## Configuration
 
-Override the `session-notify` row's config in the profile's
-`cordis.patch.yml` (or append another patch layer after installing the bundle):
+### User settings (recommended, no restart)
+
+The sound, volume, and mode are user settings written to the `session-notify`
+section of `$DSH_HOME/settings.yaml`, **hot-reloaded** (saving the file
+applies immediately). Two equivalent ways to edit them:
+
+- the bell's caret → "Sound settings" panel in the composer tool row;
+- the auto-rendered `session-notify` form on the Settings page.
+
+```yaml
+# $DSH_HOME/settings.yaml
+session-notify:
+  sound: Sosumi          # named system sound or absolute audio file path (default Glass)
+  volume: 0.8            # volume 0..1 (default 1)
+  mode: sticky           # one-shot | sticky (default one-shot)
+```
+
+### Plugin config (default layer, optional)
+
+Overriding the `session-notify` row's config in `cordis.patch.yml` sets the
+composition defaults; user settings win over them:
 
 ```yaml
 - insert:

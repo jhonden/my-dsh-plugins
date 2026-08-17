@@ -25,18 +25,25 @@ import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
+import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 import type { Session, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
 import { applyNotifyMarker } from './marker.ts'
-import { SoundPlayer } from './sound.ts'
+import { MACOS_SOUND_NAMES, SoundPlayer } from './sound.ts'
+import {
+  SESSION_NOTIFY_SETTINGS_NAMESPACE,
+  SESSION_NOTIFY_SETTINGS_SCHEMA,
+  type SessionNotifySettings,
+} from './settings.ts'
 import type {
   NotifyGetStateRequest,
   NotifyMode,
   NotifyPreviewResult,
   NotifySetArmedRequest,
   NotifySetArmedResult,
+  NotifySoundListResult,
   NotifyState,
 } from './types.ts'
 
@@ -80,9 +87,11 @@ export class SessionNotifyService extends TypertRemoteService {
   /** Playback seam; tests override {@link playSound}. */
   protected readonly player = new SoundPlayer()
   private readonly stateFile: string
-  private readonly mode: NotifyMode
-  private readonly sound: string
-  private readonly volume: number | undefined
+  /** The authoritative playback config: the settings section while one is attached, the entry otherwise. */
+  protected settingsSource: () => SessionNotifySettings
+  protected mode: NotifyMode
+  protected sound: string
+  protected volume: number | undefined
   private saveTimer: ReturnType<typeof setTimeout> | null = null
   /** Settles when persisted armed state has been read; state reads await it. */
   private readonly ready: Promise<void>
@@ -96,7 +105,31 @@ export class SessionNotifyService extends TypertRemoteService {
     this.mode = resolved.mode
     this.volume = resolved.volume
     this.stateFile = resolved.stateFile ?? dshHomePath('plugins', 'dsh-session-notify', 'armed.json')
+    this.settingsSource = () => ({ sound: this.sound, volume: this.volume ?? 1, mode: this.mode })
     this.ready = this.load()
+    // User settings override the entry config as the composition base; changes
+    // are hot-reloaded from `$DSH_HOME/settings.yaml` (no restart needed).
+    installSettingsSection(
+      ctx,
+      SESSION_NOTIFY_SETTINGS_NAMESPACE,
+      SESSION_NOTIFY_SETTINGS_SCHEMA,
+      {
+        sound: resolved.sound,
+        mode: resolved.mode,
+        ...(resolved.volume === undefined ? {} : { volume: resolved.volume }),
+      },
+      {
+        setSource: (current) => {
+          this.settingsSource = current
+        },
+        onChange: () => {
+          const value = this.settingsSource()
+          this.sound = value.sound
+          this.volume = value.volume
+          this.mode = value.mode
+        },
+      },
+    )
     ctx.on('agent/status', ({ agent, status }) => this.onAgentStatus(agent.id, status))
     ctx.on('session/disposed', (session) => this.onSessionDisposed(session.id))
     ctx.on('agent/pre-step', (payload, next) => this.onPreStep(payload, next))
@@ -125,6 +158,12 @@ export class SessionNotifyService extends TypertRemoteService {
   @Remote('preview')
   async preview(_session: Session, _request: NotifyGetStateRequest): Promise<NotifyPreviewResult> {
     return { ok: this.playSound() }
+  }
+
+  /** Named sounds the host can play directly (macOS system sounds; empty elsewhere). */
+  @Remote('listSounds')
+  async listSounds(_session: Session, _request: NotifyGetStateRequest): Promise<NotifySoundListResult> {
+    return { names: process.platform === 'darwin' ? [...MACOS_SOUND_NAMES] : [] }
   }
 
   /** The status listener: a run completing while armed plays the sound. */
