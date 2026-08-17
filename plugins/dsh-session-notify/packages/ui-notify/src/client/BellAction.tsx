@@ -84,7 +84,9 @@ const groupStyle: React.CSSProperties = {
 
 const panelStyle: React.CSSProperties = {
   position: 'absolute',
-  top: 'calc(100% + 6px)',
+  // Pop upward — the composer sits at the bottom of the view, so the space
+  // above the bell is the conversation area; a downward panel gets clipped.
+  bottom: 'calc(100% + 6px)',
   left: 0,
   zIndex: 40,
   width: '248px',

@@ -212,7 +212,7 @@ window.__ModuleLoader__.load({
 		};
 		const panelStyle = {
 			position: "absolute",
-			top: "calc(100% + 6px)",
+			bottom: "calc(100% + 6px)",
 			left: 0,
 			zIndex: 40,
 			width: "248px",
