@@ -64,11 +64,12 @@
 
 - fire-and-forget `spawn`，`stdio: ignore`；失败只 `warn` 一次，绝不抛错。
 - 平台分派：darwin `afplay`（支持 `-v` 音量）；linux `paplay` 回退 `aplay`；
-  win32 PowerShell `Media.SoundPlayer`（仅 wav）。无可用播放器时记警告。
+  win32 系统 MCI（`winmm.dll`，零依赖）：wav 走默认 waveaudio、mp3 走
+  `type mpegvideo`，`play ... wait` 同步播完子进程自然退出。无可用播放器时记警告。
 - Windows 内置音效：`C:\Windows\Media\*.wav`（37 种常用名静态收录，
   `listSounds` 在 win32 返回它们）；默认音效 `Windows Notify System Generic`，
   配置默认值 `Glass` 作为"平台默认"别名在 Windows 上解析为该音效。
-- 上传白名单按平台收窄：win32 仅 `.wav`（播放器限制），其余平台维持多格式。
+- 上传白名单按平台收窄：win32 为 `.wav` + `.mp3`（MCI 支持的格式），其余平台维持多格式。
 - 单飞行槽：同一时刻最多一个播放子进程，新触发替换旧的（最后一次完成优先），
   避免并发叠音。
 - 默认音效：macOS 系统 `Glass.aiff`；`sound` 可配命名音效或绝对路径。

@@ -23,6 +23,13 @@ interface Command {
     bin: string;
     args: string[];
 }
+/**
+ * Windows playback via system MCI (`winmm.dll`, zero dependencies): wav uses
+ * the default waveaudio device, mp3 opens as `type mpegvideo`, and
+ * `play ... wait` plays synchronously so the child exits when the sound ends
+ * (the same lifecycle the player's single-flight slot expects).
+ */
+export declare function windowsPlayerScript(path: string): string;
 /** Build the playback command for the current platform, or `undefined` when no player exists. */
 export declare function commandFor(path: string, volume?: number): Command | undefined;
 /**

@@ -111,7 +111,7 @@ composition defaults; user settings win over them:
 | Platform | Built-in sounds | Player | Custom upload formats | Volume |
 |---|---|---|---|---|
 | macOS | 14 system sounds (Basso/Glass/Sosumi…, default Glass) | `afplay` | aiff/wav/mp3/m4a/ogg | ✅ slider |
-| Windows | 37 built-ins under `C:\Windows\Media` (default `Windows Notify System Generic`) | PowerShell `Media.SoundPlayer` | **wav only** (player accepts no other format) | ❌ |
+| Windows | 37 built-ins under `C:\Windows\Media` (default `Windows Notify System Generic`) | system MCI (`winmm.dll`) | wav / **mp3** | ❌ |
 | Linux | none (configure an absolute path) | `paplay`→`aplay` | aiff/wav/mp3/m4a/ogg | ❌ |
 
 ## State and edge cases

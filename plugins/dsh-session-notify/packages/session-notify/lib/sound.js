@@ -114,6 +114,23 @@ export function soundsForPlatform(platform = process.platform) {
         return [...WINDOWS_SOUND_NAMES];
     return [];
 }
+/**
+ * Windows playback via system MCI (`winmm.dll`, zero dependencies): wav uses
+ * the default waveaudio device, mp3 opens as `type mpegvideo`, and
+ * `play ... wait` plays synchronously so the child exits when the sound ends
+ * (the same lifecycle the player's single-flight slot expects).
+ */
+export function windowsPlayerScript(path) {
+    const type = /\.mp3$/i.test(path) ? ' type mpegvideo' : '';
+    const escaped = path.replaceAll("'", "''");
+    const quoted = `'${escaped}'`;
+    return [
+        "Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class WinmmNotify{[DllImport(\"winmm.dll\")]public static extern int mciSendString(string c,string r,int n,System.IntPtr h);}'",
+        `[WinmmNotify]::mciSendString('open '+${quoted}+'${type} alias snd',${null},0,[IntPtr]::Zero)|Out-Null`,
+        "[WinmmNotify]::mciSendString('play snd wait',$null,0,[IntPtr]::Zero)|Out-Null",
+        "[WinmmNotify]::mciSendString('close snd',$null,0,[IntPtr]::Zero)|Out-Null",
+    ].join(';');
+}
 /** Build the playback command for the current platform, or `undefined` when no player exists. */
 export function commandFor(path, volume) {
     if (process.platform === 'darwin') {
@@ -125,8 +142,7 @@ export function commandFor(path, volume) {
         return { bin: 'paplay', args: [path] };
     }
     if (process.platform === 'win32') {
-        const escaped = path.replaceAll("'", "''");
-        return { bin: 'powershell', args: ['-NoProfile', '-NonInteractive', '-Command', `(New-Object Media.SoundPlayer '${escaped}').PlaySync();`] };
+        return { bin: 'powershell', args: ['-NoProfile', '-NonInteractive', '-Command', windowsPlayerScript(path)] };
     }
     return undefined;
 }

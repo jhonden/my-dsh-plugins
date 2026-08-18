@@ -11,13 +11,12 @@ import { basename, extname, join } from 'node:path'
 export const AUDIO_EXTENSIONS: ReadonlySet<string> = new Set(['.aiff', '.aif', '.wav', '.mp3', '.m4a', '.ogg'])
 
 /**
- * The extensions one platform's player can actually play. Windows uses the
- * PowerShell `Media.SoundPlayer`, which only accepts WAV — so uploads there
- * are narrowed to `.wav` instead of accepting files that would silently
- * fail to play.
+ * The extensions one platform's player can actually play. Windows plays via
+ * system MCI (winmm.dll): WAV on the default waveaudio device, MP3 as
+ * `type mpegvideo` — so uploads there accept exactly those two formats.
  */
 export function audioExtensionsForPlatform(platform: NodeJS.Platform = process.platform): ReadonlySet<string> {
-  return platform === 'win32' ? new Set(['.wav']) : AUDIO_EXTENSIONS
+  return platform === 'win32' ? new Set(['.wav', '.mp3']) : AUDIO_EXTENSIONS
 }
 
 /**

@@ -1,10 +1,9 @@
 /** Audio extensions the notification player can handle. */
 export declare const AUDIO_EXTENSIONS: ReadonlySet<string>;
 /**
- * The extensions one platform's player can actually play. Windows uses the
- * PowerShell `Media.SoundPlayer`, which only accepts WAV — so uploads there
- * are narrowed to `.wav` instead of accepting files that would silently
- * fail to play.
+ * The extensions one platform's player can actually play. Windows plays via
+ * system MCI (winmm.dll): WAV on the default waveaudio device, MP3 as
+ * `type mpegvideo` — so uploads there accept exactly those two formats.
  */
 export declare function audioExtensionsForPlatform(platform?: NodeJS.Platform): ReadonlySet<string>;
 /**
