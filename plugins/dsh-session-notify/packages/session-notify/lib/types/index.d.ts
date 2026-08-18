@@ -62,7 +62,7 @@ export declare class SessionNotifyService extends TypertRemoteService {
     setArmed(session: Session, request: NotifySetArmedRequest): Promise<NotifySetArmedResult>;
     /** Play the configured sound immediately (sound preview / test). */
     preview(_session: Session, _request: NotifyGetStateRequest): Promise<NotifyPreviewResult>;
-    /** Named sounds the host can play directly (macOS system sounds; empty elsewhere). */
+    /** Named sounds the host can play directly (built-in sounds for the platform). */
     listSounds(_session: Session, _request: NotifyGetStateRequest): Promise<NotifySoundListResult>;
     /** The playback preferences currently in effect (settings-resolved). */
     getPrefs(_session: Session, _request: NotifyGetStateRequest): Promise<NotifyPrefs>;

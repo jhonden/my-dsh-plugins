@@ -11,8 +11,8 @@ import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { Session, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionNotifyService } from '../src/index.ts'
 import { applyNotifyMarker, stripMarker } from '../src/marker.ts'
-import { MACOS_SOUND_NAMES, resolveSoundPath } from '../src/sound.ts'
-import { saveUpload } from '../src/sound-upload.ts'
+import { MACOS_SOUND_NAMES, WINDOWS_SOUND_NAMES, defaultSoundName, resolveSoundPath, soundsForPlatform } from '../src/sound.ts'
+import { audioExtensionsForPlatform, saveUpload } from '../src/sound-upload.ts'
 import type { NotifyMode } from '../src/types.ts'
 
 /** Real service with a counted playback seam — no audio is ever spawned. */
@@ -531,3 +531,28 @@ describe('sound upload core', () => {
     expect(path).not.toContain('..')
   })
 })
+
+describe('windows platform support', () => {
+  it('lists Windows built-in sounds and defaults to the notify chime', () => {
+    expect(soundsForPlatform('win32')).toContain('Windows Ding')
+    expect(soundsForPlatform('win32')).toContain('Windows Notify System Generic')
+    expect(defaultSoundName('win32')).toBe('Windows Notify System Generic')
+    expect(defaultSoundName('darwin')).toBe('Glass')
+  })
+
+  it('resolves Windows names against C:\\Windows\\Media', () => {
+    expect(resolveSoundPath('Windows Notify System Generic', 'win32')).toBe('C:\\Windows\\Media\\Windows Notify System Generic.wav')
+    expect(resolveSoundPath('Glass', 'win32')).toBeUndefined()
+    expect(resolveSoundPath('C:\\My Sounds\\ding.wav', 'win32')).toBe('C:\\My Sounds\\ding.wav')
+  })
+
+  it('narrows uploads to wav on Windows', () => {
+    expect(audioExtensionsForPlatform('win32')).toEqual(new Set(['.wav']))
+    expect(audioExtensionsForPlatform('darwin')).toContain('.mp3')
+  })
+
+  it('keeps the Windows vocabulary in the wire list', () => {
+    expect(WINDOWS_SOUND_NAMES.length).toBeGreaterThanOrEqual(30)
+  })
+})
+

@@ -34,8 +34,8 @@ import type {} from '@deepseek-ai/dsh-session'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
 import { applyNotifyMarker } from './marker.ts'
-import { MACOS_SOUND_NAMES, SoundPlayer } from './sound.ts'
-import { DEFAULT_MAX_UPLOAD_BYTES, UploadRejectedError, UploadTooLargeError, saveUpload } from './sound-upload.ts'
+import { SoundPlayer, defaultSoundName, soundsForPlatform } from './sound.ts'
+import { DEFAULT_MAX_UPLOAD_BYTES, UploadRejectedError, UploadTooLargeError, audioExtensionsForPlatform, saveUpload } from './sound-upload.ts'
 import {
   SESSION_NOTIFY_SETTINGS_NAMESPACE,
   SESSION_NOTIFY_SETTINGS_SCHEMA,
@@ -119,7 +119,9 @@ export class SessionNotifyService extends TypertRemoteService {
     // Parse through the schema so field defaults apply for direct construction
     // (tests, embedded use) exactly as they do for cordis.yml rows.
     const resolved = SessionNotifyService.Config.parse(config)
-    this.sound = resolved.sound
+    // The config default `Glass` is a "platform default" alias — on Windows
+    // it resolves to the built-in `Windows Notify System Generic`.
+    this.sound = resolved.sound === 'Glass' ? defaultSoundName() : resolved.sound
     this.mode = resolved.mode
     this.volume = resolved.volume
     this.stateFile = resolved.stateFile ?? dshHomePath('plugins', 'dsh-session-notify', 'armed.json')
@@ -192,10 +194,10 @@ export class SessionNotifyService extends TypertRemoteService {
     return { ok: this.playSound() }
   }
 
-  /** Named sounds the host can play directly (macOS system sounds; empty elsewhere). */
+  /** Named sounds the host can play directly (built-in sounds for the platform). */
   @Remote('listSounds')
   async listSounds(_session: Session, _request: NotifyGetStateRequest): Promise<NotifySoundListResult> {
-    return { names: process.platform === 'darwin' ? [...MACOS_SOUND_NAMES] : [] }
+    return { names: soundsForPlatform() }
   }
 
   /** The playback preferences currently in effect (settings-resolved). */
@@ -270,7 +272,7 @@ export class SessionNotifyService extends TypertRemoteService {
     const url = new URL(req.url ?? '/', 'http://localhost')
     const name = url.searchParams.get('name') ?? ''
     try {
-      const path = await saveUpload(this.uploadDir, name, req, this.maxUploadBytes)
+      const path = await saveUpload(this.uploadDir, name, req, this.maxUploadBytes, audioExtensionsForPlatform())
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ path }))
     } catch (error) {

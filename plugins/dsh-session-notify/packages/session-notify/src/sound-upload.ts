@@ -10,6 +10,16 @@ import { basename, extname, join } from 'node:path'
 /** Audio extensions the notification player can handle. */
 export const AUDIO_EXTENSIONS: ReadonlySet<string> = new Set(['.aiff', '.aif', '.wav', '.mp3', '.m4a', '.ogg'])
 
+/**
+ * The extensions one platform's player can actually play. Windows uses the
+ * PowerShell `Media.SoundPlayer`, which only accepts WAV — so uploads there
+ * are narrowed to `.wav` instead of accepting files that would silently
+ * fail to play.
+ */
+export function audioExtensionsForPlatform(platform: NodeJS.Platform = process.platform): ReadonlySet<string> {
+  return platform === 'win32' ? new Set(['.wav']) : AUDIO_EXTENSIONS
+}
+
 /** Default maximum accepted upload size (5 MiB — notification sounds are short). */
 export const DEFAULT_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
@@ -41,9 +51,10 @@ export async function saveUpload(
   name: string,
   chunks: AsyncIterable<Buffer>,
   maxBytes: number,
+  extensions: ReadonlySet<string> = AUDIO_EXTENSIONS,
 ): Promise<string> {
   const ext = extname(name).toLowerCase()
-  if (!AUDIO_EXTENSIONS.has(ext)) {
+  if (!extensions.has(ext)) {
     throw new UploadRejectedError(`unsupported audio extension: ${ext || '(none)'}`)
   }
   let size = 0

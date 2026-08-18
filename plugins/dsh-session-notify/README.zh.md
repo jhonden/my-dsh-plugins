@@ -95,11 +95,17 @@ session-notify:
 ```
 
 - `sound`：macOS 上可用系统音效名（见下表）或任意音频文件绝对路径；
-  Linux/Windows 上必须给绝对路径（`paplay`/PowerShell 播放）。
+  Windows 上可用 `C:\Windows\Media` 内置音效名或绝对路径；Linux 上必须给
+  绝对路径（`paplay`/PowerShell 播放）。
 - `mode`：`one-shot` 响一次自动复位；`sticky` 保持 armed，每轮完成都响，直到手动取消。
 
-macOS 系统音效：Basso、Blow、Bottle、Frog、Funk、Glass、Hero、Morse、Ping、Pop、
-Purr、Sosumi、Submarine、Tink（默认 Glass）。
+### 平台差异
+
+| 平台 | 内置音效 | 播放器 | 自定义上传格式 | 音量 |
+|---|---|---|---|---|
+| macOS | 14 种系统音效（Basso/Glass/Sosumi…，默认 Glass） | `afplay` | aiff/wav/mp3/m4a/ogg | ✅ 滑杆 |
+| Windows | `C:\Windows\Media` 内置 37 种（默认 `Windows Notify System Generic`） | PowerShell `Media.SoundPlayer` | **仅 wav**（播放器只认 wav） | ❌ |
+| Linux | 无（需配置绝对路径） | `paplay`→`aplay` | aiff/wav/mp3/m4a/ogg | ❌ |
 
 ## 状态与边界
 

@@ -100,14 +100,19 @@ composition defaults; user settings win over them:
         volume: 0.8        # afplay volume 0..1, macOS only
 ```
 
-- `sound`: on macOS either a system sound name (table below) or an absolute
-  audio file path; on Linux/Windows an absolute path is required (played via
-  `paplay`/PowerShell).
+- `sound`: on macOS a system sound name (table below) or an absolute audio
+  file path; on Windows a `C:\Windows\Media` built-in name or an absolute
+  path; on Linux an absolute path is required (played via `paplay`/PowerShell).
 - `mode`: `one-shot` plays once then auto-resets; `sticky` stays armed and
   alerts on every completed run until disarmed.
 
-macOS system sounds: Basso, Blow, Bottle, Frog, Funk, Glass, Hero, Morse, Ping,
-Pop, Purr, Sosumi, Submarine, Tink (default Glass).
+### Platform differences
+
+| Platform | Built-in sounds | Player | Custom upload formats | Volume |
+|---|---|---|---|---|
+| macOS | 14 system sounds (Basso/Glass/Sosumi…, default Glass) | `afplay` | aiff/wav/mp3/m4a/ogg | ✅ slider |
+| Windows | 37 built-ins under `C:\Windows\Media` (default `Windows Notify System Generic`) | PowerShell `Media.SoundPlayer` | **wav only** (player accepts no other format) | ❌ |
+| Linux | none (configure an absolute path) | `paplay`→`aplay` | aiff/wav/mp3/m4a/ogg | ❌ |
 
 ## State and edge cases
 

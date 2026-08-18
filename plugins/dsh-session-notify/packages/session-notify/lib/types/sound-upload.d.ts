@@ -1,5 +1,12 @@
 /** Audio extensions the notification player can handle. */
 export declare const AUDIO_EXTENSIONS: ReadonlySet<string>;
+/**
+ * The extensions one platform's player can actually play. Windows uses the
+ * PowerShell `Media.SoundPlayer`, which only accepts WAV — so uploads there
+ * are narrowed to `.wav` instead of accepting files that would silently
+ * fail to play.
+ */
+export declare function audioExtensionsForPlatform(platform?: NodeJS.Platform): ReadonlySet<string>;
 /** Default maximum accepted upload size (5 MiB — notification sounds are short). */
 export declare const DEFAULT_MAX_UPLOAD_BYTES: number;
 /** The upload is too large to accept. */
@@ -21,5 +28,5 @@ export declare function sanitizeUploadName(name: string): string;
  * @throws {@link UploadRejectedError} for extension/empty rejections,
  *   {@link UploadTooLargeError} past the cap.
  */
-export declare function saveUpload(dir: string, name: string, chunks: AsyncIterable<Buffer>, maxBytes: number): Promise<string>;
+export declare function saveUpload(dir: string, name: string, chunks: AsyncIterable<Buffer>, maxBytes: number, extensions?: ReadonlySet<string>): Promise<string>;
 //# sourceMappingURL=sound-upload.d.ts.map
