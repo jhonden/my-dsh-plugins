@@ -160,6 +160,7 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
   /** Custom-file upload progress; the error text when a pick failed. */
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [volDraft, setVolDraft] = useState<number | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -207,6 +208,7 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
   useEffect(() => {
     setCustomMode(false)
     setUploadError(null)
+    setPreviewError(null)
     let cancelled = false
     void call.getPrefs(sessionId).then((outcome) => {
       if (!cancelled && outcome.ok) setPrefs(outcome.value)
@@ -243,7 +245,14 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
   }
 
   const preview = async (): Promise<void> => {
-    await call.preview(sessionId)
+    const outcome = await call.preview(sessionId)
+    if (!outcome.ok) {
+      setPreviewError(outcome.error.message)
+    } else if (!outcome.value.ok && outcome.value.error !== undefined) {
+      setPreviewError(outcome.value.error)
+    } else {
+      setPreviewError(null)
+    }
   }
 
   const isArmed = armed === true
@@ -389,6 +398,9 @@ export function BellAction({ sessionId, useSession, t, call }: BellActionProps) 
               {t('action.preview')}
             </button>
           </div>
+          {previewError !== null ? (
+            <div style={{ fontSize: '11px', color: '#e5484d' }}>{previewError}</div>
+          ) : null}
         </div>
       ) : null}
     </div>

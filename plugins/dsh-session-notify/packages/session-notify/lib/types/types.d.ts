@@ -23,6 +23,8 @@ export interface NotifySetArmedResult {
 export interface NotifyPreviewResult {
     /** Whether a playback was actually launched. */
     ok: boolean;
+    /** Human-readable failure reason when the sound could not be played. */
+    error?: string;
 }
 /** listSounds response. */
 export interface NotifySoundListResult {

@@ -35,18 +35,24 @@ export declare function windowsWavScript(path: string): string;
 export declare function windowsMp3Script(path: string): string;
 /** Build the playback command for the current platform, or `undefined` when no player exists. */
 export declare function commandFor(path: string, volume?: number): Command | undefined;
+/** The outcome of one `play` attempt, with a diagnostics message on failure. */
+export interface PlaybackResult {
+    ok: boolean;
+    error?: string;
+}
 /**
- * Fire-and-forget sound player. `play` returns whether a playback was
- * launched; failures are logged once per player instance and never thrown.
+ * Fire-and-forget sound player. `play` launches the platform command, records
+ * a full diagnostics trail (attempt, resolved path, player command, exit
+ * code), and reports failures with a reason instead of failing silently —
+ * Windows playback problems should be visible in the host log and, via the
+ * `preview` Remote, in the bell panel itself.
  */
 export declare class SoundPlayer {
     private current;
-    private warned;
     /** Play one sound, replacing any in-flight playback. */
-    play(sound: string, volume?: number): boolean;
+    play(sound: string, volume?: number): PlaybackResult;
     /** Spawn one command with the single-flight slot; Linux retries ALSA on PulseAudio absence. */
     private launch;
-    private warnOnce;
 }
 export {};
 //# sourceMappingURL=sound.d.ts.map

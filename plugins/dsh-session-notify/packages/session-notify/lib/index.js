@@ -179,7 +179,8 @@ let SessionNotifyService = (() => {
         }
         /** Play the configured sound immediately (sound preview / test). */
         async preview(_session, _request) {
-            return { ok: this.playSound() };
+            const result = this.playSound();
+            return { ok: result.ok, ...(result.error === undefined ? {} : { error: result.error }) };
         }
         /** Named sounds the host can play directly (built-in sounds for the platform). */
         async listSounds(_session, _request) {

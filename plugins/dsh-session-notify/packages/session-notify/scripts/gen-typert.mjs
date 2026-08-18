@@ -28,6 +28,7 @@ const _setArmedResult$schema = z.object({
 })
 const _previewResult$schema = z.object({
   'ok': z.boolean(),
+  'error': z.string().optional(),
 })
 const _soundListResult$schema = z.object({
   'names': z.array(z.string()),
@@ -333,7 +334,7 @@ export const TYPERT = {
           },
           {
             'name': 'NotifyPreviewResult',
-            'declaration': ${decl('export interface NotifyPreviewResult {\n    ok: boolean;\n}')},
+            'declaration': ${decl('export interface NotifyPreviewResult {\n    ok: boolean;\n    error?: string;\n}')},
           },
           {
             'name': 'NotifySetArmedRequest',

@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { Session } from '@deepseek-ai/dsh-session';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import { z } from 'zod';
-import { SoundPlayer } from './sound.ts';
+import { SoundPlayer, type PlaybackResult } from './sound.ts';
 import { type SessionNotifySettings } from './settings.ts';
 import type { NotifyGetStateRequest, NotifyMode, NotifyPrefs, NotifyPreviewResult, NotifySetArmedRequest, NotifySetArmedResult, NotifySetPrefsRequest, NotifySoundListResult, NotifyState } from './types.ts';
 export type * from './types.ts';
@@ -97,7 +97,7 @@ export declare class SessionNotifyService extends TypertRemoteService {
     /** The pre-step waterfall: strip the notify marker and arm the session. */
     private onPreStep;
     /** Playback seam: tests override this to count triggers without spawning. */
-    protected playSound(): boolean;
+    protected playSound(): PlaybackResult;
     /** Restore persisted armed state; a corrupt file resets to empty with a warning. */
     private load;
     /** Debounced atomic persistence of the armed map. */

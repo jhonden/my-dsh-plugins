@@ -156,35 +156,48 @@ export function commandFor(path, volume) {
     return undefined;
 }
 /**
- * Fire-and-forget sound player. `play` returns whether a playback was
- * launched; failures are logged once per player instance and never thrown.
+ * Fire-and-forget sound player. `play` launches the platform command, records
+ * a full diagnostics trail (attempt, resolved path, player command, exit
+ * code), and reports failures with a reason instead of failing silently —
+ * Windows playback problems should be visible in the host log and, via the
+ * `preview` Remote, in the bell panel itself.
  */
 export class SoundPlayer {
     current = null;
-    warned = false;
     /** Play one sound, replacing any in-flight playback. */
     play(sound, volume) {
         const path = resolveSoundPath(sound);
         if (path === undefined) {
-            this.warnOnce(`sound "${sound}" is not playable on ${process.platform} — configure an absolute file path`);
-            return false;
+            const error = `sound "${sound}" is not playable on ${process.platform} — configure an absolute file path`;
+            console.warn(`[session-notify] ${error}`);
+            return { ok: false, error };
         }
         const command = commandFor(path, volume);
         if (command === undefined) {
-            this.warnOnce(`no sound player available on ${process.platform}`);
-            return false;
+            const error = `no sound player available on ${process.platform}`;
+            console.warn(`[session-notify] ${error}`);
+            return { ok: false, error };
         }
+        console.log(`[session-notify] playing "${sound}" -> ${path} via ${command.bin}`);
         return this.launch(command, path);
     }
     /** Spawn one command with the single-flight slot; Linux retries ALSA on PulseAudio absence. */
     launch(command, path) {
+        let child;
         try {
             this.current?.kill();
         }
         catch {
             // already dead — ignore
         }
-        const child = spawn(command.bin, command.args, { stdio: 'ignore' });
+        try {
+            child = spawn(command.bin, command.args, { stdio: 'ignore' });
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.warn(`[session-notify] spawn ${command.bin} failed: ${message}`);
+            return { ok: false, error: `${command.bin}: ${message}` };
+        }
         this.current = child;
         const onError = (error) => {
             if (this.current !== child)
@@ -192,32 +205,36 @@ export class SoundPlayer {
             this.current = null;
             if (process.platform === 'linux' && command.bin === 'paplay') {
                 // PulseAudio missing — retry once through ALSA's aplay.
+                console.warn(`[session-notify] ${path}: ${error.message}; retrying with aplay`);
                 const fallback = spawn('aplay', [path], { stdio: 'ignore' });
                 this.current = fallback;
                 fallback.on('error', (fallbackError) => {
-                    this.warnOnce(`sound playback failed: ${fallbackError.message}`);
+                    console.warn(`[session-notify] aplay failed: ${fallbackError.message}`);
                     this.current = null;
                 });
-                fallback.on('exit', () => {
+                fallback.on('exit', (code) => {
+                    console.log(`[session-notify] aplay exited with code ${code ?? 'null'}`);
                     if (this.current === fallback)
                         this.current = null;
                 });
                 return;
             }
-            this.warnOnce(`sound playback failed: ${error.message}`);
+            console.warn(`[session-notify] ${command.bin} playback failed: ${error.message}`);
         };
         child.on('error', onError);
-        child.on('exit', () => {
+        child.on('exit', (code) => {
             if (this.current === child)
                 this.current = null;
+            if (code !== 0 && code !== null) {
+                // Non-zero exit means the player itself reported a failure — worth
+                // logging even though the run must never be disturbed.
+                console.warn(`[session-notify] ${command.bin} exited with code ${code} for ${path}`);
+            }
+            else {
+                console.log(`[session-notify] ${command.bin} finished (code ${code ?? 'null'})`);
+            }
         });
-        return true;
-    }
-    warnOnce(message) {
-        if (this.warned)
-            return;
-        this.warned = true;
-        console.warn(`[session-notify] ${message}`);
+        return { ok: true };
     }
 }
 //# sourceMappingURL=sound.js.map

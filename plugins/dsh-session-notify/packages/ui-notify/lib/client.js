@@ -317,6 +317,7 @@ window.__ModuleLoader__.load({
 			/** Custom-file upload progress; the error text when a pick failed. */
 			const [uploading, setUploading] = (0, react.useState)(false);
 			const [uploadError, setUploadError] = (0, react.useState)(null);
+			const [previewError, setPreviewError] = (0, react.useState)(null);
 			const [volDraft, setVolDraft] = (0, react.useState)(null);
 			const rootRef = (0, react.useRef)(null);
 			const fileInputRef = (0, react.useRef)(null);
@@ -356,6 +357,7 @@ window.__ModuleLoader__.load({
 			(0, react.useEffect)(() => {
 				setCustomMode(false);
 				setUploadError(null);
+				setPreviewError(null);
 				let cancelled = false;
 				call.getPrefs(sessionId).then((outcome) => {
 					if (!cancelled && outcome.ok) setPrefs(outcome.value);
@@ -391,7 +393,10 @@ window.__ModuleLoader__.load({
 				if (outcome.ok) setArmed(outcome.value.armed);
 			};
 			const preview = async () => {
-				await call.preview(sessionId);
+				const outcome = await call.preview(sessionId);
+				if (!outcome.ok) setPreviewError(outcome.error.message);
+				else if (!outcome.value.ok && outcome.value.error !== void 0) setPreviewError(outcome.value.error);
+				else setPreviewError(null);
 			};
 			const isArmed = armed === true;
 			const isRunning = running && isArmed;
@@ -571,7 +576,14 @@ window.__ModuleLoader__.load({
 									onClick: () => void preview(),
 									children: t("action.preview")
 								})
-							})
+							}),
+							previewError !== null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								style: {
+									fontSize: "11px",
+									color: "#e5484d"
+								},
+								children: previewError
+							}) : null
 						]
 					}) : null
 				]

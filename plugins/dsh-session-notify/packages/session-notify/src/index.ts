@@ -34,7 +34,7 @@ import type {} from '@deepseek-ai/dsh-session'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
 import { applyNotifyMarker } from './marker.ts'
-import { SoundPlayer, defaultSoundName, soundsForPlatform } from './sound.ts'
+import { SoundPlayer, defaultSoundName, soundsForPlatform, type PlaybackResult } from './sound.ts'
 import { DEFAULT_MAX_UPLOAD_BYTES, UploadRejectedError, UploadTooLargeError, audioExtensionsForPlatform, saveUpload } from './sound-upload.ts'
 import {
   SESSION_NOTIFY_SETTINGS_NAMESPACE,
@@ -191,7 +191,8 @@ export class SessionNotifyService extends TypertRemoteService {
   /** Play the configured sound immediately (sound preview / test). */
   @Remote('preview')
   async preview(_session: Session, _request: NotifyGetStateRequest): Promise<NotifyPreviewResult> {
-    return { ok: this.playSound() }
+    const result = this.playSound()
+    return { ok: result.ok, ...(result.error === undefined ? {} : { error: result.error }) }
   }
 
   /** Named sounds the host can play directly (built-in sounds for the platform). */
@@ -338,7 +339,7 @@ export class SessionNotifyService extends TypertRemoteService {
   }
 
   /** Playback seam: tests override this to count triggers without spawning. */
-  protected playSound(): boolean {
+  protected playSound(): PlaybackResult {
     return this.player.play(this.sound, this.volume)
   }
 
