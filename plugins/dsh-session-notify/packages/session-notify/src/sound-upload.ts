@@ -20,8 +20,13 @@ export function audioExtensionsForPlatform(platform: NodeJS.Platform = process.p
   return platform === 'win32' ? new Set(['.wav']) : AUDIO_EXTENSIONS
 }
 
-/** Default maximum accepted upload size (5 MiB — notification sounds are short). */
-export const DEFAULT_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+/**
+ * Default maximum accepted upload size (15 MiB). Generous because WAV (the
+ * Windows upload format) is uncompressed PCM — 44.1 kHz stereo runs ~10 MiB
+ * per minute, so the cap allows comfortable multi-second chimes there too.
+ * The plugin config's `maxUploadBytes` overrides it.
+ */
+export const DEFAULT_MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 
 /** The upload is too large to accept. */
 export class UploadTooLargeError extends Error {}
