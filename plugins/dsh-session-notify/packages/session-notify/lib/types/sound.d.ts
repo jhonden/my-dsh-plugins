@@ -24,12 +24,15 @@ interface Command {
     args: string[];
 }
 /**
- * Windows playback via system MCI (`winmm.dll`, zero dependencies): wav uses
- * the default waveaudio device, mp3 opens as `type mpegvideo`, and
- * `play ... wait` plays synchronously so the child exits when the sound ends
- * (the same lifecycle the player's single-flight slot expects).
+ * Windows playback scripts. Two conservative, OS-built-in players split by
+ * format — no P/Invoke or third-party tools, so nothing silently fails:
+ *  - wav: `Media.SoundPlayer` (`PlaySync`), the verified-basic path.
+ *  - mp3: Windows Media Player COM (`WMPlayer.OCX`), the standard mp3 player
+ *    every Windows 10/11 ships; we poll `playState` until the media ends
+ *    (with a 60s safety cap) so the child exits when playback finishes.
  */
-export declare function windowsPlayerScript(path: string): string;
+export declare function windowsWavScript(path: string): string;
+export declare function windowsMp3Script(path: string): string;
 /** Build the playback command for the current platform, or `undefined` when no player exists. */
 export declare function commandFor(path: string, volume?: number): Command | undefined;
 /**

@@ -64,8 +64,10 @@
 
 - fire-and-forget `spawn`，`stdio: ignore`；失败只 `warn` 一次，绝不抛错。
 - 平台分派：darwin `afplay`（支持 `-v` 音量）；linux `paplay` 回退 `aplay`；
-  win32 系统 MCI（`winmm.dll`，零依赖）：wav 走默认 waveaudio、mp3 走
-  `type mpegvideo`，`play ... wait` 同步播完子进程自然退出。无可用播放器时记警告。
+  win32 按格式分派两个系统自带播放器：wav 用 `Media.SoundPlayer`（`PlaySync`，
+  最保守可靠的路径）；mp3 用 Windows Media Player COM（`WMPlayer.OCX`，Win10/11
+  自带），轮询 `playState` 至播放结束（60s 上限）后 `close`。不使用 P/Invoke/
+  MCI——那些在干净 Windows 上依赖未注册设备类型，会静默无声。无可用播放器时记警告。
 - Windows 内置音效：`C:\Windows\Media\*.wav`（37 种常用名静态收录，
   `listSounds` 在 win32 返回它们）；默认音效 `Windows Notify System Generic`，
   配置默认值 `Glass` 作为"平台默认"别名在 Windows 上解析为该音效。

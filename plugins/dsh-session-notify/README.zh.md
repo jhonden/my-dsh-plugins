@@ -104,7 +104,7 @@ session-notify:
 | 平台 | 内置音效 | 播放器 | 自定义上传格式 | 音量 |
 |---|---|---|---|---|
 | macOS | 14 种系统音效（Basso/Glass/Sosumi…，默认 Glass） | `afplay` | aiff/wav/mp3/m4a/ogg | ✅ 滑杆 |
-| Windows | `C:\Windows\Media` 内置 37 种（默认 `Windows Notify System Generic`） | 系统 MCI（`winmm.dll`） | wav / **mp3** | ❌ |
+| Windows | `C:\Windows\Media` 内置 37 种（默认 `Windows Notify System Generic`） | `SoundPlayer`(wav) + WMP COM(mp3) | wav / **mp3** | ❌ |
 | Linux | 无（需配置绝对路径） | `paplay`→`aplay` | aiff/wav/mp3/m4a/ogg | ❌ |
 
 ## 状态与边界

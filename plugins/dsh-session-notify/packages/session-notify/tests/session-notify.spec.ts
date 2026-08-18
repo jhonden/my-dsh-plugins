@@ -11,7 +11,7 @@ import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { Session, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionNotifyService } from '../src/index.ts'
 import { applyNotifyMarker, stripMarker } from '../src/marker.ts'
-import { MACOS_SOUND_NAMES, WINDOWS_SOUND_NAMES, defaultSoundName, resolveSoundPath, soundsForPlatform, windowsPlayerScript } from '../src/sound.ts'
+import { MACOS_SOUND_NAMES, WINDOWS_SOUND_NAMES, defaultSoundName, resolveSoundPath, soundsForPlatform, windowsMp3Script, windowsWavScript } from '../src/sound.ts'
 import { audioExtensionsForPlatform, saveUpload } from '../src/sound-upload.ts'
 import type { NotifyMode } from '../src/types.ts'
 
@@ -551,16 +551,17 @@ describe('windows platform support', () => {
     expect(audioExtensionsForPlatform('darwin')).toContain('.mp3')
   })
 
-  it('builds the MCI script with the mpegvideo type for mp3', () => {
-    const script = windowsPlayerScript('C:\Users\me\chime.mp3')
-    expect(script).toContain('type mpegvideo alias snd')
-    expect(script).toContain('play snd wait')
+  it('plays mp3 through the Windows Media Player COM with a play-state poll', () => {
+    const script = windowsMp3Script('C:\Users\me\chime.mp3')
+    expect(script).toContain('New-Object -ComObject WMPlayer.OCX')
+    expect(script).toContain('playState -eq 3')
+    expect(script).toContain('$p.close()')
   })
 
-  it('builds the MCI script without a type for wav and escapes quotes', () => {
-    const script = windowsPlayerScript("C:\\My\\It's a chime.wav")
-    expect(script).not.toContain('type mpegvideo')
-    expect(script).toContain("It''s a chime.wav")
+  it('plays wav through Media.SoundPlayer and escapes quotes', () => {
+    const script = windowsWavScript("C:\\My\\It's a chime.wav")
+    expect(script).toContain("Media.SoundPlayer 'C:\\My\\It''s a chime.wav'")
+    expect(script).toContain('PlaySync')
   })
 
 
